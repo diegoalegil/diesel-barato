@@ -395,6 +395,8 @@ button {
 .card-btn:active { transform: scale(0.97); background: var(--card-press); }
 
 .mono {
+  position: relative;
+  overflow: hidden;
   flex: 0 0 auto;
   width: 42px; height: 42px;
   display: grid;
@@ -405,6 +407,18 @@ button {
   font-family: var(--serif);
   font-size: 16px;
   font-weight: 600;
+}
+
+.mono-img img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 5px;
+  background: #FFF;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 0.5px var(--hair);
 }
 
 .card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }

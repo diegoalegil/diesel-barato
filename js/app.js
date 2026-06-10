@@ -104,6 +104,31 @@ function monogram(name) {
   return words[0].slice(0, 2).charAt(0).toUpperCase() + words[0].slice(1, 2).toLowerCase();
 }
 
+// logos locales de las marcas con presencia en la isla
+const BRAND_LOGOS = [
+  ['repsol', 'repsol'], ['cepsa', 'cepsa'], ['moeve', 'moeve'], ['shell', 'shell'],
+  ['disa', 'disa'], ['pcan', 'pcan'], ['tgas', 'tgas'], ['plenergy', 'plenergy'],
+  ['oceano', 'oceano'], ['canary oil', 'canaryoil'], ['bp', 'bp'],
+];
+
+function brandLogo(brand) {
+  const b = String(brand).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
+  for (const [key, file] of BRAND_LOGOS) {
+    if (b === key || b.startsWith(key + ' ') || b.startsWith(key + '-') ||
+        b.includes(' ' + key + ' ') || b.endsWith(' ' + key)) {
+      return `icons/brands/${file}.png`;
+    }
+  }
+  return null;
+}
+
+function monoHTML(s, name) {
+  const logo = brandLogo(s.brand);
+  const img = logo ? `<img src="${logo}" alt="" loading="lazy" onerror="this.remove()">` : '';
+  return `<span class="mono${logo ? ' mono-img' : ''}" style="--mono:${monoColor(s.brand)}">${monogram(name)}${img}</span>`;
+}
+
 function formatUpdated(ts) {
   const d = new Date(ts);
   const now = new Date();
@@ -248,7 +273,7 @@ function cardHTML(s, rank, qClassOf, cheapestId, animate) {
     (open ? `<span class="meta-fix">· ${open}</span>` : '');
   return `<li class="card${anim}">
     <button class="card-btn" data-id="${s.id}">
-      <span class="mono" style="--mono:${monoColor(s.brand)}">${monogram(name)}</span>
+      ${monoHTML(s, name)}
       <span class="card-main">
         <span class="card-name">${name}</span>
         <span class="card-meta">${meta}</span>
@@ -318,7 +343,7 @@ function sheetHTML(s) {
 
   return `
     <div class="sheet-head">
-      <span class="mono" style="--mono:${monoColor(s.brand)}">${monogram(name)}</span>
+      ${monoHTML(s, name)}
       <div>
         <div class="sheet-name">${name}</div>
         <div class="sheet-town">${townLine}</div>
