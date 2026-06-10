@@ -948,3 +948,147 @@ button {
     transition-duration: 0.01ms !important;
   }
 }
+/* ============================================================
+   BLOQUE (b) · Splash de entrada — añadir al FINAL de styles.css
+   Solo anima transform, opacity y clip-path.
+   ============================================================ */
+
+#splash {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--sat) + 12px) 24px calc(var(--sab) + 24px);
+  background: linear-gradient(180deg, #CC7250 0%, #B05537 100%);
+  touch-action: none;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  #splash {
+    background: linear-gradient(180deg, #A85B3F 0%, #8E4226 100%);
+  }
+}
+
+.splash-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  transform: translateY(-2vh);
+  will-change: transform, opacity;
+}
+
+/* --- la gota cae con muelle (squash & stretch sutil) --- */
+
+.splash-drop-wrap {
+  width: clamp(150px, 40vw, 200px);
+  transform-origin: 50% 86%;
+  will-change: transform;
+  animation: splash-fall 0.68s 0.05s both;
+}
+
+.splash-drop-wrap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+@keyframes splash-fall {
+  0%   { transform: translate3d(0, -62vh, 0) scale(0.92, 1.1);  animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.55); }
+  56%  { transform: translate3d(0, 0, 0) scale(1, 1);           animation-timing-function: cubic-bezier(0.25, 0.7, 0.3, 1); }
+  68%  { transform: translate3d(0, 0, 0) scale(1.07, 0.92);     animation-timing-function: cubic-bezier(0.3, 0, 0.4, 1); }
+  82%  { transform: translate3d(0, -1.4vh, 0) scale(0.99, 1.02); animation-timing-function: cubic-bezier(0.4, 0, 0.5, 1); }
+  100% { transform: none; }
+}
+
+/* --- dentro de la gota: sube el Teide, el sol hace pop --- */
+
+.splash-mountain {
+  transform-box: fill-box;
+  will-change: transform;
+  animation: splash-mountain 0.6s var(--ease-ios) 0.46s both;
+}
+
+@keyframes splash-mountain {
+  from { transform: translateY(165px); }
+  to   { transform: translateY(0); }
+}
+
+.splash-sun {
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform, opacity;
+  animation: splash-sun 0.42s var(--ease-pop) 0.82s both;
+}
+
+@keyframes splash-sun {
+  from { transform: translateY(12px) scale(0); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* --- título --- */
+
+.splash-title {
+  font-family: var(--serif);
+  font-size: clamp(30px, 8.5vw, 40px);
+  font-weight: 560;
+  font-variation-settings: 'opsz' 80;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  color: #F7F0E3;
+  animation: splash-title 0.5s var(--ease-ios) 0.92s both;
+}
+
+@keyframes splash-title {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* --- salida: la escena se expande y el overlay se abre
+       en iris (clip-path) desde la gota, revelando la app --- */
+
+#splash.is-leaving {
+  pointer-events: none;
+  animation: splash-iris 0.44s var(--ease-ios) forwards;
+}
+
+@keyframes splash-iris {
+  from { clip-path: circle(141% at 50% 46%); }
+  to   { clip-path: circle(0% at 50% 46%); }
+}
+
+#splash.is-leaving .splash-scene {
+  opacity: 0;
+  transform: translateY(-2vh) scale(1.3);
+  transition: transform 0.44s var(--ease-ios), opacity 0.26s ease-out;
+}
+
+/* --- reduced motion: fundido simple de 250 ms --- */
+
+@media (prefers-reduced-motion: reduce) {
+  #splash .splash-drop-wrap,
+  #splash .splash-mountain,
+  #splash .splash-sun,
+  #splash .splash-title {
+    animation: none !important;
+  }
+
+  #splash {
+    transition: opacity 250ms ease !important;
+  }
+
+  #splash.is-leaving {
+    animation: none !important;
+    opacity: 0;
+  }
+
+  #splash.is-leaving .splash-scene {
+    transition: none !important;
+    transform: translateY(-2vh);
+    opacity: 1;
+  }
+}

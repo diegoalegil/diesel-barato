@@ -1,12 +1,13 @@
 // Service worker: la app funciona al instante y sin conexión.
 
-const VERSION = 'db-v7';
+const VERSION = 'db-v8';
 
 const SHELL = [
   './',
   './index.html',
   './css/styles.css',
   './js/app.js',
+  './js/splash.js',
   './js/api.js',
   './js/geo.js',
   './js/sheet.js',

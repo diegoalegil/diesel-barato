@@ -26,6 +26,30 @@
 </head>
 <body>
 
+  <!-- Splash de entrada (se elimina del DOM al terminar) -->
+  <div id="splash" role="presentation" aria-hidden="true">
+    <div class="splash-scene">
+      <div class="splash-drop-wrap">
+        <svg viewBox="150 82 212 332" aria-hidden="true">
+          <defs>
+            <clipPath id="splashDropClip">
+              <path d="M256 92C222 160 160 234 160 308a96 96 0 0 0 192 0c0-74-62-148-96-216Z"></path>
+            </clipPath>
+          </defs>
+          <path d="M256 92C222 160 160 234 160 308a96 96 0 0 0 192 0c0-74-62-148-96-216Z" fill="#F7F0E3"></path>
+          <g clip-path="url(#splashDropClip)">
+            <circle class="splash-sun" cx="289" cy="183" r="13" fill="#E5B266"></circle>
+            <g class="splash-mountain">
+              <path d="M146 388c48-30 70-84 86-130 7 7 15 0 21 4s14-2 19 2 9-2 12-8c16 48 38 102 86 132l-4 52H146Z" fill="#C2674A"></path>
+              <path d="M262 263c8 3 16-1 22-7 16 48 38 102 86 132l-4 52H262Z" fill="#A85538"></path>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <p class="splash-title">Diésel barato</p>
+    </div>
+  </div>
+
   <!-- Barra compacta que aparece al hacer scroll -->
   <div class="topbar" id="topbar" data-shown="false">
     <span class="topbar-title">Diésel barato</span>
@@ -259,6 +283,7 @@
   </svg>
 
   <noscript><p style="padding:2rem;text-align:center">Esta app necesita JavaScript para mostrar los precios.</p></noscript>
+  <script src="js/splash.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>
