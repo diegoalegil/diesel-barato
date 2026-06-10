@@ -1,6 +1,6 @@
 // Service worker: la app funciona al instante y sin conexión.
 
-const VERSION = 'db-v4';
+const VERSION = 'db-v5';
 
 const SHELL = [
   './',

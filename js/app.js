@@ -109,6 +109,8 @@ const BRAND_LOGOS = [
   ['repsol', 'repsol'], ['cepsa', 'cepsa'], ['moeve', 'moeve'], ['shell', 'shell'],
   ['disa', 'disa'], ['pcan', 'pcan'], ['tgas', 'tgas'], ['plenergy', 'plenergy'],
   ['oceano', 'oceano'], ['canary oil', 'canaryoil'], ['bp', 'bp'],
+  ['petroprix', 'petroprix'],
+  ['el mirador', 'cepsa'], // E.S. El Mirador (Los Realejos) opera bajo Cepsa
 ];
 
 function brandLogo(brand) {
