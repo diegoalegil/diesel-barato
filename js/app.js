@@ -118,6 +118,7 @@ const BRAND_LOGOS = [
   ['oceano', 'oceano'], ['canary oil', 'canaryoil'], ['bp', 'bp'],
   ['petroprix', 'petroprix'],
   ['red de combustibles', 'redcanarios'],
+  ['gmoil', 'gmoil'],
   ['el mirador', 'cepsa'], // E.S. El Mirador (Los Realejos) opera bajo Cepsa
   ['la caleta', 'cepsa'],  // E.S. La Caleta (Garachico) opera bajo Cepsa
 ];
