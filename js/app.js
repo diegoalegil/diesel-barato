@@ -9,8 +9,9 @@ const state = {
   stations: [],
   fecha: null,
   fromCache: false,
-  fuel: 'diesel',
+  fuel: 'diesel', // clave de combustible o 'repsol' (comparador con descuento)
   sort: 'price',
+  dto: 5, // descuento Repsol en céntimos por litro
   pos: null,
   mapOpen: false,
 };
@@ -37,6 +38,12 @@ const retryBtn = $('retryBtn');
 const topbar = $('topbar');
 const toastEl = $('toast');
 const ptrEl = $('ptr');
+const dtoRow = $('dtoRow');
+const dtoSeg = $('dtoSeg');
+const verdictEl = $('verdict');
+const statMinLabel = $('statMinLabel');
+const statAvgLabel = $('statAvgLabel');
+const statSaveLabel = $('statSaveLabel');
 
 // ---------- utilidades de formato ----------
 
@@ -110,19 +117,38 @@ const BRAND_LOGOS = [
   ['disa', 'disa'], ['pcan', 'pcan'], ['tgas', 'tgas'], ['plenergy', 'plenergy'],
   ['oceano', 'oceano'], ['canary oil', 'canaryoil'], ['bp', 'bp'],
   ['petroprix', 'petroprix'],
+  ['red de combustibles', 'redcanarios'],
   ['el mirador', 'cepsa'], // E.S. El Mirador (Los Realejos) opera bajo Cepsa
+  ['la caleta', 'cepsa'],  // E.S. La Caleta (Garachico) opera bajo Cepsa
 ];
 
-function brandLogo(brand) {
+function brandKey(brand) {
   const b = String(brand).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
   for (const [key, file] of BRAND_LOGOS) {
     if (b === key || b.startsWith(key + ' ') || b.startsWith(key + '-') ||
         b.includes(' ' + key + ' ') || b.endsWith(' ' + key)) {
-      return `icons/brands/${file}.png`;
+      return file;
     }
   }
   return null;
+}
+
+function brandLogo(brand) {
+  const k = brandKey(brand);
+  return k ? `icons/brands/${k}.png` : null;
+}
+
+const isRepsol = (s) => brandKey(s.brand) === 'repsol';
+
+// combustible real del modo actual (el comparador Repsol trabaja sobre di\u00e9sel)
+const fuelKey = () => (state.fuel === 'repsol' ? 'diesel' : state.fuel);
+
+// precio efectivo: en modo Repsol, las Repsol llevan el descuento aplicado
+function priceOf(s) {
+  const p = s.prices[fuelKey()];
+  if (p == null) return null;
+  return state.fuel === 'repsol' && isRepsol(s) ? p - state.dto / 100 : p;
 }
 
 function monoHTML(s, name) {
@@ -194,28 +220,24 @@ function openLabel(st) {
 
 // ---------- derivados ----------
 
-function stationsForFuel(fuel) {
-  return state.stations.filter((s) => s.prices[fuel] != null);
+function stationsAvailable() {
+  return state.stations.filter((s) => priceOf(s) != null);
 }
 
-function quantilesFor(fuel) {
-  const prices = stationsForFuel(fuel).map((s) => s.prices[fuel]).sort((a, b) => a - b);
-  if (!prices.length) return [0, 0, 0];
+function makeQClass() {
+  const prices = stationsAvailable().map(priceOf).sort((a, b) => a - b);
+  if (!prices.length) return () => 'q1';
   const q = (p) => prices[Math.min(prices.length - 1, Math.floor(p * prices.length))];
-  return [q(0.25), q(0.5), q(0.75)];
-}
-
-function makeQClass(fuel) {
-  const qs = quantilesFor(fuel);
+  const qs = [q(0.25), q(0.5), q(0.75)];
   return (price) => (price <= qs[0] ? 'q0' : price <= qs[1] ? 'q1' : price <= qs[2] ? 'q2' : 'q3');
 }
 
 function sortedStations() {
-  const list = stationsForFuel(state.fuel);
+  const list = stationsAvailable();
   if (state.sort === 'near' && state.pos) {
-    return list.sort((a, b) => (a._km ?? 1e9) - (b._km ?? 1e9) || a.prices[state.fuel] - b.prices[state.fuel]);
+    return list.sort((a, b) => (a._km ?? 1e9) - (b._km ?? 1e9) || priceOf(a) - priceOf(b));
   }
-  return list.sort((a, b) => a.prices[state.fuel] - b.prices[state.fuel] || (a._km ?? 1e9) - (b._km ?? 1e9));
+  return list.sort((a, b) => priceOf(a) - priceOf(b) || (a._km ?? 1e9) - (b._km ?? 1e9));
 }
 
 function computeDistances() {
@@ -230,28 +252,64 @@ function computeDistances() {
 function animateValue(el, to, format) {
   const from = parseFloat(el.dataset.v ?? 'NaN');
   el.dataset.v = String(to);
+  if (el._anim) { el._anim(); el._anim = null; }
   if (!Number.isFinite(from) || matchMedia('(prefers-reduced-motion: reduce)').matches) {
     el.textContent = format(to);
     return;
   }
   const t0 = performance.now();
   const dur = 450;
+  let raf = 0;
+  const finish = () => {
+    clearTimeout(guard);
+    cancelAnimationFrame(raf);
+    el._anim = null;
+    el.textContent = format(to);
+  };
+  // si rAF queda suspendido (pestaña oculta), el valor final se fija igualmente
+  const guard = setTimeout(finish, dur + 100);
+  el._anim = () => { clearTimeout(guard); cancelAnimationFrame(raf); };
   const tick = (t) => {
     const p = Math.min(1, (t - t0) / dur);
-    const eased = 1 - (1 - p) ** 3;
-    el.textContent = format(from + (to - from) * eased);
-    if (p < 1) requestAnimationFrame(tick);
+    if (p >= 1) { finish(); return; }
+    el.textContent = format(from + (to - from) * (1 - (1 - p) ** 3));
+    raf = requestAnimationFrame(tick);
   };
-  requestAnimationFrame(tick);
+  raf = requestAnimationFrame(tick);
 }
 
 function renderStats() {
-  const list = stationsForFuel(state.fuel);
+  const list = stationsAvailable();
   if (!list.length) {
     statMin.textContent = statAvg.textContent = statSave.textContent = '—';
     return;
   }
-  const prices = list.map((s) => s.prices[state.fuel]);
+
+  if (state.fuel === 'repsol') {
+    const reps = list.filter(isRepsol);
+    const others = list.filter((s) => !isRepsol(s));
+    statMinLabel.textContent = `Mejor Repsol (−${state.dto} ct)`;
+    statAvgLabel.textContent = 'Mejor del resto';
+    statSaveLabel.textContent = 'Diferencia por depósito';
+    if (!reps.length || !others.length) {
+      statMin.textContent = statAvg.textContent = statSave.textContent = '—';
+      return;
+    }
+    const bestR = Math.min(...reps.map(priceOf));
+    const bestO = Math.min(...others.map(priceOf));
+    const diff = (bestO - bestR) * 50; // positivo = la Repsol te ahorra dinero
+    animateValue(statMin, bestR, (v) => `${nfPrice.format(v)} €`);
+    animateValue(statAvg, bestO, (v) => `${nfPrice.format(v)} €`);
+    animateValue(statSave, diff, (v) => `${v >= 0 ? '+' : '−'}${nfEuro.format(Math.abs(v))} €`);
+    statSave.classList.toggle('is-cost', diff < 0);
+    return;
+  }
+
+  statMinLabel.textContent = 'Más barata';
+  statAvgLabel.textContent = 'Media de la isla';
+  statSaveLabel.textContent = 'Ahorro por depósito';
+  statSave.classList.remove('is-cost');
+  const prices = list.map(priceOf);
   const min = Math.min(...prices);
   const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
   animateValue(statMin, min, (v) => `${nfPrice.format(v)} €`);
@@ -259,11 +317,37 @@ function renderStats() {
   animateValue(statSave, (avg - min) * 50, (v) => `${nfEuro.format(v)} €`);
 }
 
+function renderVerdict() {
+  if (state.fuel !== 'repsol') {
+    verdictEl.hidden = true;
+    return;
+  }
+  const list = stationsAvailable();
+  const reps = list.filter(isRepsol);
+  const others = list.filter((s) => !isRepsol(s));
+  if (!reps.length || !others.length) {
+    verdictEl.hidden = true;
+    return;
+  }
+  const bestR = reps.reduce((m, s) => (priceOf(s) < priceOf(m) ? s : m));
+  const bestO = others.reduce((m, s) => (priceOf(s) < priceOf(m) ? s : m));
+  const pr = priceOf(bestR);
+  const po = priceOf(bestO);
+  const win = pr <= po;
+  verdictEl.classList.remove('win', 'lose');
+  verdictEl.classList.add(win ? 'win' : 'lose');
+  verdictEl.innerHTML = win
+    ? `<strong>Te compensa la Repsol</strong> de ${shortTown(bestR.town)}: con −${state.dto} ct pagarías ${fmtPrice(pr)} €/L, frente a ${fmtPrice(po)} €/L en ${brandCase(bestO.brand)} (${shortTown(bestO.town)}).`
+    : `<strong>Aun con −${state.dto} ct sale mejor ${brandCase(bestO.brand)}</strong> en ${shortTown(bestO.town)}: ${fmtPrice(po)} €/L frente a los ${fmtPrice(pr)} €/L de la Repsol más barata (${shortTown(bestR.town)}).`;
+  verdictEl.hidden = false;
+}
+
 const BEST_TAG =
   '<span class="best-tag"><svg class="tag-ic" aria-hidden="true"><use href="#il-drop"/></svg>Mejor precio de la isla</span>';
 
 function cardHTML(s, rank, qClassOf, cheapestId, animate) {
-  const price = s.prices[state.fuel];
+  const price = priceOf(s);
+  const base = s.prices[fuelKey()];
   const st = scheduleStatus(s.schedule);
   const open = openLabel(st);
   const name = brandCase(s.brand);
@@ -282,6 +366,7 @@ function cardHTML(s, rank, qClassOf, cheapestId, animate) {
         ${tag}
       </span>
       <span class="card-price ${qClassOf(price)}">
+        ${price !== base ? `<span class="old">${fmtPrice(base)}</span>` : ''}
         <span class="num">${fmtPrice(price)}</span>
         <span class="unit">€ / litro</span>
       </span>
@@ -291,9 +376,9 @@ function cardHTML(s, rank, qClassOf, cheapestId, animate) {
 
 function renderList(animate = true) {
   const list = sortedStations();
-  const qClassOf = makeQClass(state.fuel);
+  const qClassOf = makeQClass();
   const cheapestId = list.length
-    ? list.reduce((m, s) => (s.prices[state.fuel] < m.prices[state.fuel] ? s : m), list[0]).id
+    ? list.reduce((m, s) => (priceOf(s) < priceOf(m) ? s : m), list[0]).id
     : null;
 
   if (!list.length) {
@@ -305,8 +390,9 @@ function renderList(animate = true) {
   }
   listEl.innerHTML = list.map((s, i) => cardHTML(s, i, qClassOf, cheapestId, animate)).join('');
 
-  const fuelName = FUELS.find((f) => f.key === state.fuel).label;
-  heroCount.textContent = `Tenerife · ${list.length} gasolineras con ${fuelName}`;
+  heroCount.textContent = state.fuel === 'repsol'
+    ? `Tenerife · ${list.length} gasolineras · Repsol con −${state.dto} ct`
+    : `Tenerife · ${list.length} gasolineras con ${FUELS.find((f) => f.key === state.fuel).label}`;
 }
 
 function renderUpdated() {
@@ -318,6 +404,7 @@ function renderUpdated() {
 
 function renderAll(animate = true) {
   renderStats();
+  renderVerdict();
   renderList(animate);
   renderUpdated();
 }
@@ -327,9 +414,8 @@ function renderAll(animate = true) {
 function sheetHTML(s) {
   const st = scheduleStatus(s.schedule);
   const name = brandCase(s.brand);
-  const qClassOf = makeQClass(state.fuel);
-  const cheapest = stationsForFuel(state.fuel)
-    .every((o) => (s.prices[state.fuel] ?? Infinity) <= o.prices[state.fuel]);
+  const myPrice = priceOf(s);
+  const cheapest = myPrice != null && stationsAvailable().every((o) => myPrice <= priceOf(o));
 
   const townLine = [shortTown(s.town), s._km != null ? `a ${formatKm(s._km)}` : null].filter(Boolean).join(' · ');
 
@@ -349,7 +435,7 @@ function sheetHTML(s) {
       <div>
         <div class="sheet-name">${name}</div>
         <div class="sheet-town">${townLine}</div>
-        ${cheapest && s.prices[state.fuel] != null ? BEST_TAG : ''}
+        ${cheapest ? BEST_TAG : ''}
       </div>
     </div>
     <div class="sheet-rows">
@@ -363,6 +449,12 @@ function sheetHTML(s) {
         <svg class="ilc" aria-hidden="true"><use href="#il-clock"/></svg>
         <span class="sheet-row-text">${s.schedule}
           ${openSub ? `<span class="sheet-row-sub ${st.open ? 'is-open' : 'is-closed'}">${openSub}</span>` : ''}
+        </span>
+      </div>` : ''}
+      ${state.fuel === 'repsol' && isRepsol(s) && s.prices.diesel != null ? `<div class="sheet-row">
+        <svg class="ilc" aria-hidden="true"><use href="#il-coin"/></svg>
+        <span class="sheet-row-text">Con tu descuento de −${state.dto} ct
+          <span class="sheet-row-sub">Pagarías ${fmtPrice(priceOf(s))} €/L de diésel</span>
         </span>
       </div>` : ''}
     </div>
@@ -414,7 +506,17 @@ fuelSeg.addEventListener('click', (e) => {
   if (!btn || btn.dataset.fuel === state.fuel) return;
   state.fuel = btn.dataset.fuel;
   setSeg(fuelSeg, 'fuel', state.fuel);
+  dtoRow.hidden = state.fuel !== 'repsol';
   renderAll(true);
+});
+
+dtoSeg.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-dto]');
+  if (!btn || +btn.dataset.dto === state.dto) return;
+  state.dto = +btn.dataset.dto;
+  setSeg(dtoSeg, 'dto', String(state.dto));
+  renderAll(true);
+  if (state.mapOpen) updatePins(mapArgs());
 });
 
 sortSeg.addEventListener('click', async (e) => {
@@ -441,18 +543,21 @@ sortSeg.addEventListener('click', async (e) => {
 
 // ---------- mapa ----------
 
+function mapArgs() {
+  return {
+    stations: state.stations,
+    priceOf,
+    qClassOf: makeQClass(),
+    fmtPrice,
+    onSelect: openStation,
+  };
+}
+
 mapBtn.addEventListener('click', async () => {
   state.mapOpen = true;
   mapView.hidden = false;
   try {
-    await showMap({
-      stations: state.stations,
-      fuel: state.fuel,
-      qClassOf: makeQClass(state.fuel),
-      fmtPrice,
-      pos: state.pos,
-      onSelect: openStation,
-    });
+    await showMap({ ...mapArgs(), pos: state.pos });
   } catch {
     mapView.hidden = true;
     state.mapOpen = false;
@@ -485,7 +590,7 @@ async function refresh({ silent = false } = {}) {
     statsEl.style.opacity = '';
     renderAll(true);
     if (state.mapOpen) {
-      updatePins({ stations: state.stations, fuel: state.fuel, qClassOf: makeQClass(state.fuel), fmtPrice, onSelect: openStation });
+      updatePins(mapArgs());
     }
     if (data.fromCache && !silent) toast('Sin conexión · mostrando los últimos precios guardados');
   } catch {
@@ -574,8 +679,10 @@ if (isStandalone) {
 // ---------- arranque ----------
 
 async function init() {
+  // el descuento Repsol siempre arranca en −5 ct
   setSeg(fuelSeg, 'fuel', state.fuel);
   setSeg(sortSeg, 'sort', state.sort);
+  setSeg(dtoSeg, 'dto', String(state.dto));
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('./sw.js').catch(() => {});

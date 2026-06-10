@@ -30,7 +30,7 @@ function loadLeaflet() {
   return leafletReady;
 }
 
-export async function showMap({ stations, fuel, qClassOf, fmtPrice, pos, onSelect }) {
+export async function showMap({ stations, priceOf, qClassOf, fmtPrice, pos, onSelect }) {
   const L = await loadLeaflet();
   const container = document.getElementById('map');
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -46,7 +46,7 @@ export async function showMap({ stations, fuel, qClassOf, fmtPrice, pos, onSelec
     container.classList.toggle('zoomed-out', map.getZoom() < 11);
   }
 
-  updatePins({ stations, fuel, qClassOf, fmtPrice, onSelect });
+  updatePins({ stations, priceOf, qClassOf, fmtPrice, onSelect });
 
   if (pos) {
     const icon = L.divIcon({ className: 'pin-wrap', html: '<div class="user-dot"></div>', iconSize: [0, 0] });
@@ -58,14 +58,14 @@ export async function showMap({ stations, fuel, qClassOf, fmtPrice, pos, onSelec
   requestAnimationFrame(() => map.invalidateSize());
 }
 
-export function updatePins({ stations, fuel, qClassOf, fmtPrice, onSelect }) {
+export function updatePins({ stations, priceOf, qClassOf, fmtPrice, onSelect }) {
   if (!map || !window.L) return;
   const L = window.L;
   if (pinLayer) pinLayer.remove();
   pinLayer = L.layerGroup();
 
   for (const s of stations) {
-    const price = s.prices[fuel];
+    const price = priceOf(s);
     if (price == null) continue;
     const icon = L.divIcon({
       className: 'pin-wrap',

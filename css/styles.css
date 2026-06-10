@@ -297,8 +297,9 @@ button {
   .seg { background: rgba(244, 232, 210, 0.08); }
 }
 
-.seg-fuel { grid-template-columns: repeat(4, 1fr); margin-top: 14px; }
+.seg-fuel { grid-template-columns: repeat(5, 1fr); margin-top: 14px; }
 .seg-sort { grid-template-columns: repeat(2, 1fr); flex: 1; }
+.seg-dto { grid-template-columns: repeat(2, 1fr); flex: 0 0 auto; width: 148px; }
 
 .seg-thumb {
   position: absolute;
@@ -311,8 +312,9 @@ button {
   z-index: -1;
 }
 
-.seg-fuel .seg-thumb { width: calc((100% - 6px) / 4); }
+.seg-fuel .seg-thumb { width: calc((100% - 6px) / 5); }
 .seg-sort .seg-thumb { width: calc((100% - 6px) / 2); }
+.seg-dto .seg-thumb { width: calc((100% - 6px) / 2); }
 
 .seg-btn {
   display: inline-flex;
@@ -330,6 +332,57 @@ button {
 
 .seg-btn:active { transform: scale(0.95); }
 .seg-btn[aria-pressed="true"] { color: var(--ink); font-weight: 600; }
+
+/* ---------- modo Repsol: descuento y veredicto ---------- */
+
+.dto-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 9px 10px 9px 15px;
+  background: var(--card);
+  border: 0.5px solid var(--hair);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+}
+
+.dto-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.verdict {
+  margin-top: 8px;
+  padding: 13px 16px;
+  border-radius: var(--r-lg);
+  border: 0.5px solid var(--hair);
+  box-shadow: var(--shadow-card);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  animation: card-in 0.45s var(--ease-ios) both;
+}
+
+.verdict.win { background: var(--q0-bg); }
+.verdict.win strong { color: var(--q0); }
+.verdict.lose { background: var(--q3-bg); }
+.verdict.lose strong { color: var(--q3); }
+
+.card-price .old {
+  font-size: 12px;
+  color: var(--ink-3);
+  text-decoration: line-through;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.stat-value.is-save.is-cost { color: var(--q3); }
 
 /* ---------- fila de controles ---------- */
 

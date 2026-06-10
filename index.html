@@ -71,21 +71,21 @@
       <div class="stat">
         <span class="stat-top">
           <svg class="stat-ic" aria-hidden="true"><use href="#il-drop"/></svg>
-          <span class="stat-label">Más barata</span>
+          <span class="stat-label" id="statMinLabel">Más barata</span>
         </span>
         <span class="stat-value" id="statMin">—</span>
       </div>
       <div class="stat">
         <span class="stat-top">
           <svg class="stat-ic" aria-hidden="true"><use href="#il-gauge"/></svg>
-          <span class="stat-label">Media de la isla</span>
+          <span class="stat-label" id="statAvgLabel">Media de la isla</span>
         </span>
         <span class="stat-value" id="statAvg">—</span>
       </div>
       <div class="stat">
         <span class="stat-top">
           <svg class="stat-ic" aria-hidden="true"><use href="#il-coin"/></svg>
-          <span class="stat-label">Ahorro por depósito</span>
+          <span class="stat-label" id="statSaveLabel">Ahorro por depósito</span>
         </span>
         <span class="stat-value is-save" id="statSave">—</span>
       </div>
@@ -95,9 +95,24 @@
       <span class="seg-thumb" aria-hidden="true"></span>
       <button class="seg-btn" data-fuel="diesel" aria-pressed="true">Diésel</button>
       <button class="seg-btn" data-fuel="dieselPlus" aria-pressed="false">Diésel+</button>
+      <button class="seg-btn" data-fuel="repsol" aria-pressed="false">Repsol</button>
       <button class="seg-btn" data-fuel="g95" aria-pressed="false">G95</button>
       <button class="seg-btn" data-fuel="g98" aria-pressed="false">G98</button>
     </nav>
+
+    <div class="dto-row" id="dtoRow" hidden>
+      <span class="dto-label">
+        <svg class="stat-ic" aria-hidden="true"><use href="#il-coin"/></svg>
+        Tu descuento Repsol
+      </span>
+      <nav class="seg seg-dto" id="dtoSeg" aria-label="Descuento por litro">
+        <span class="seg-thumb" aria-hidden="true"></span>
+        <button class="seg-btn" data-dto="5" aria-pressed="true">−5 ct</button>
+        <button class="seg-btn" data-dto="10" aria-pressed="false">−10 ct</button>
+      </nav>
+    </div>
+
+    <div class="verdict" id="verdict" hidden></div>
 
     <div class="controls">
       <nav class="seg seg-sort" id="sortSeg" aria-label="Ordenar">
