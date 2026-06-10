@@ -54,6 +54,8 @@
         <circle cx="96" cy="153" r="2.2" fill="var(--art-shrub)"/>
         <circle cx="298" cy="148" r="3" fill="var(--art-shrub)"/>
         <circle cx="312" cy="152" r="2" fill="var(--art-shrub)"/>
+        <use href="#il-palm" x="24" y="112" width="34" height="34"/>
+        <use href="#il-pump" x="338" y="118" width="27" height="27"/>
       </svg>
       <div class="hero-text">
         <h1 class="hero-title">Diésel barato</h1>
@@ -66,15 +68,24 @@
 
     <section class="stats" id="stats" aria-label="Resumen de precios">
       <div class="stat">
-        <span class="stat-label">Más barata</span>
+        <span class="stat-top">
+          <svg class="stat-ic" aria-hidden="true"><use href="#il-drop"/></svg>
+          <span class="stat-label">Más barata</span>
+        </span>
         <span class="stat-value" id="statMin">—</span>
       </div>
       <div class="stat">
-        <span class="stat-label">Media de la isla</span>
+        <span class="stat-top">
+          <svg class="stat-ic" aria-hidden="true"><use href="#il-gauge"/></svg>
+          <span class="stat-label">Media de la isla</span>
+        </span>
         <span class="stat-value" id="statAvg">—</span>
       </div>
       <div class="stat">
-        <span class="stat-label">Ahorro por depósito</span>
+        <span class="stat-top">
+          <svg class="stat-ic" aria-hidden="true"><use href="#il-coin"/></svg>
+          <span class="stat-label">Ahorro por depósito</span>
+        </span>
         <span class="stat-value is-save" id="statSave">—</span>
       </div>
     </section>
@@ -125,6 +136,16 @@
     </div>
 
     <footer class="foot">
+      <svg class="foot-scene" viewBox="0 0 320 86" aria-hidden="true">
+        <circle cx="284" cy="20" r="10" fill="var(--art-sun)"/>
+        <path d="M236 26c3.4-3.4 6.8-3.4 10.2 0" stroke="var(--art-bird)" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <path d="M0 70c60-7 130-3 200-5 50-2 90 1 120-1v22H0Z" fill="var(--art-sand)"/>
+        <use href="#il-palm" x="42" y="24" width="46" height="46"/>
+        <use href="#il-pump" x="216" y="28" width="42" height="42"/>
+        <circle cx="120" cy="66" r="3" fill="var(--art-shrub)"/>
+        <circle cx="132" cy="69" r="2.2" fill="var(--art-shrub)"/>
+        <circle cx="186" cy="67" r="2.6" fill="var(--art-shrub)"/>
+      </svg>
       <p>Precios oficiales que las estaciones comunican al <strong>Ministerio para la Transición Ecológica</strong>. Se actualizan varias veces al día.</p>
       <p class="foot-tiny">Hecho con cariño para Tenerife 🌋</p>
     </footer>
@@ -176,6 +197,47 @@
       </symbol>
       <symbol id="i-x" viewBox="0 0 24 24">
         <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      </symbol>
+
+      <!-- iconitos ilustrados, estilo cálido -->
+      <symbol id="il-drop" viewBox="0 0 48 48">
+        <path d="M24 5C17 14 12 21 12 27.5 12 34.8 17.3 40.5 24 40.5S36 34.8 36 27.5C36 21 31 14 24 5Z" fill="var(--art-teide)"/>
+        <circle cx="18.8" cy="28.5" r="3.6" fill="var(--art-snow)"/>
+      </symbol>
+      <symbol id="il-gauge" viewBox="0 0 48 48">
+        <path d="M7 31a17 17 0 0 1 34 0h-7.5a9.5 9.5 0 0 0-19 0Z" fill="var(--art-hill)"/>
+        <path d="M23 29.4 13.4 17.8 26 25.6Z" fill="var(--art-teide-sh)"/>
+        <circle cx="24" cy="31" r="4" fill="var(--art-teide)"/>
+      </symbol>
+      <symbol id="il-coin" viewBox="0 0 48 48">
+        <circle cx="24" cy="24" r="16" fill="var(--art-sun)"/>
+        <circle cx="24" cy="24" r="11.5" fill="var(--art-sun-deep)"/>
+        <path d="M28.5 18.5a7.5 7.5 0 1 0 0 11M16.5 21.8h8M16.5 26.2h8" fill="none" stroke="var(--art-snow)" stroke-width="2.8" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="il-pin" viewBox="0 0 48 48">
+        <path d="M24 44S9.5 31.5 9.5 19.8a14.5 14.5 0 0 1 29 0C38.5 31.5 24 44 24 44Z" fill="var(--art-teide)"/>
+        <circle cx="24" cy="19.5" r="5.4" fill="var(--art-snow)"/>
+      </symbol>
+      <symbol id="il-clock" viewBox="0 0 48 48">
+        <circle cx="24" cy="24" r="17" fill="var(--art-hill)"/>
+        <circle cx="24" cy="24" r="13.2" fill="var(--art-snow)"/>
+        <path d="M24 16.5V24l5.5 3.5" fill="none" stroke="var(--art-teide-sh)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="il-palm" viewBox="0 0 48 48">
+        <path d="M23.5 44c-.5-8 .5-17 4.5-24.6l-3-1.4C21 25.6 20.5 36 21.5 44Z" fill="var(--art-trunk)"/>
+        <path d="M26.5 19.5C30 12.5 36 10 42 12c-4 4-10 6-15.5 7.5Z" fill="var(--art-shrub)"/>
+        <path d="M26.5 19.5C22 12 15.5 10.5 10 13.5c5 3.5 11 5.1 16.5 6Z" fill="var(--art-hill)"/>
+        <path d="M26.5 19.5c5-2 11-1 14.5 3-5 1.5-10.5 0-14.5-3Z" fill="var(--art-hill)"/>
+        <path d="M26.5 19.5c-5-2.5-10.5-1.5-14 2.5 5 1.8 10.3.3 14-2.5Z" fill="var(--art-shrub)"/>
+        <circle cx="25.2" cy="21.2" r="1.8" fill="var(--art-trunk)"/>
+        <circle cx="28.4" cy="21.6" r="1.5" fill="var(--art-trunk)"/>
+      </symbol>
+      <symbol id="il-pump" viewBox="0 0 48 48">
+        <rect x="10" y="38" width="20" height="4.5" rx="2.2" fill="var(--art-ridge)"/>
+        <rect x="12" y="13" width="16" height="26" rx="4" fill="var(--art-teide)"/>
+        <rect x="15.5" y="17.5" width="9" height="7" rx="2" fill="var(--art-snow)"/>
+        <path d="M28 20h4a4 4 0 0 1 4 4v9a3 3 0 0 0 6 0v-7" fill="none" stroke="var(--art-teide-sh)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M42 14.5c-2.6 3.4-3.9 5.2-3.9 7.2a3.9 3.9 0 0 0 7.8 0c0-2-1.3-3.8-3.9-7.2Z" fill="var(--art-hill)"/>
       </symbol>
     </defs>
   </svg>

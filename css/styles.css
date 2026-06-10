@@ -26,6 +26,8 @@
 
   /* ilustraciones */
   --art-sun: #E5B266;
+  --art-sun-deep: #D29C4F;
+  --art-trunk: #8C6B4F;
   --art-ridge: #E9DBBE;
   --art-teide: #C2674A;
   --art-teide-sh: #A85538;
@@ -69,6 +71,8 @@
     --q3: #E07B5C;  --q3-bg: #41281F;
 
     --art-sun: #C99A55;
+    --art-sun-deep: #A8803F;
+    --art-trunk: #6E5740;
     --art-ridge: #38322A;
     --art-teide: #9E5638;
     --art-teide-sh: #7F4329;
@@ -83,6 +87,8 @@
 /* ---------- base ---------- */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+[hidden] { display: none !important; }
 
 html { -webkit-text-size-adjust: 100%; }
 
@@ -258,6 +264,10 @@ button {
 }
 
 .stat + .stat { border-left: 0.5px solid var(--hair); }
+
+.stat-top { display: flex; align-items: flex-start; gap: 6px; }
+
+.stat-ic { width: 17px; height: 17px; flex: 0 0 auto; margin-top: -1px; }
 
 .stat-label { font-size: 12px; color: var(--ink-2); }
 
@@ -453,7 +463,9 @@ button {
 .card-price.q3 .num { color: var(--q3); }
 
 .best-tag {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-top: 3px;
   font-size: 11.5px;
   font-weight: 600;
@@ -463,6 +475,25 @@ button {
   padding: 2px 7px;
   width: fit-content;
 }
+
+.tag-ic { width: 11px; height: 11px; flex: 0 0 auto; }
+
+.empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 34px 24px;
+  background: var(--card);
+  border: 0.5px solid var(--hair);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  color: var(--ink-2);
+  font-size: 14.5px;
+}
+
+.empty-ic { width: 60px; height: 60px; }
 
 /* skeleton */
 
@@ -540,6 +571,12 @@ button {
 
 .foot strong { color: var(--ink-2); font-weight: 600; }
 .foot-tiny { margin-top: 10px; }
+
+.foot-scene {
+  display: block;
+  width: min(300px, 82%);
+  margin: 0 auto 16px;
+}
 
 /* ---------- mapa ---------- */
 
@@ -753,6 +790,7 @@ button {
 }
 
 .sheet-row .ic { color: var(--ink-3); margin-top: 2px; }
+.sheet-row .ilc { width: 21px; height: 21px; flex: 0 0 auto; margin-top: 1px; }
 .sheet-row-text { flex: 1; line-height: 1.4; }
 .sheet-row-sub { display: block; font-size: 12.5px; color: var(--ink-2); margin-top: 1px; }
 

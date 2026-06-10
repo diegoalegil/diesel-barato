@@ -83,7 +83,11 @@ const TOWN_SHORT = {
 };
 
 function shortTown(town) {
-  return TOWN_SHORT[String(town).toLowerCase().trim()] || titleCase(town);
+  const t = String(town).trim();
+  // "Realejos (Los)" → "Los Realejos"
+  const m = t.match(/^(.+?)\s*\((el|la|los|las)\)$/i);
+  if (m) return titleCase(`${m[2]} ${m[1]}`);
+  return TOWN_SHORT[t.toLowerCase()] || titleCase(t);
 }
 
 const MONO_COLORS = ['#BC6242', '#8C6B4F', '#7C8F62', '#B08A45', '#A65B3F', '#6E7D54', '#9D7F4E', '#996A56'];
@@ -228,12 +232,15 @@ function renderStats() {
   animateValue(statSave, (avg - min) * 50, (v) => `${nfEuro.format(v)} €`);
 }
 
+const BEST_TAG =
+  '<span class="best-tag"><svg class="tag-ic" aria-hidden="true"><use href="#il-drop"/></svg>Mejor precio de la isla</span>';
+
 function cardHTML(s, rank, qClassOf, cheapestId, animate) {
   const price = s.prices[state.fuel];
   const st = scheduleStatus(s.schedule);
   const open = openLabel(st);
   const name = brandCase(s.brand);
-  const tag = s.id === cheapestId ? '<span class="best-tag">Mejor precio de la isla</span>' : '';
+  const tag = s.id === cheapestId ? BEST_TAG : '';
   const anim = animate ? ` enter" style="--d:${Math.min(rank, 13)}` : '';
   const meta =
     `<span class="meta-town">${shortTown(s.town)}</span>` +
@@ -263,8 +270,10 @@ function renderList(animate = true) {
     : null;
 
   if (!list.length) {
-    listEl.innerHTML = `<li class="card"><div class="card-btn" style="justify-content:center;color:var(--ink-2);font-size:14px">
-      Ninguna gasolinera vende este combustible en Tenerife.</div></li>`;
+    listEl.innerHTML = `<li class="empty-card">
+      <svg class="empty-ic" aria-hidden="true"><use href="#il-pump"/></svg>
+      Ninguna gasolinera vende este combustible en Tenerife.
+    </li>`;
     return;
   }
   listEl.innerHTML = list.map((s, i) => cardHTML(s, i, qClassOf, cheapestId, animate)).join('');
@@ -295,7 +304,7 @@ function sheetHTML(s) {
   const cheapest = stationsForFuel(state.fuel)
     .every((o) => (s.prices[state.fuel] ?? Infinity) <= o.prices[state.fuel]);
 
-  const townLine = [titleCase(s.town), s._km != null ? `a ${formatKm(s._km)}` : null].filter(Boolean).join(' · ');
+  const townLine = [shortTown(s.town), s._km != null ? `a ${formatKm(s._km)}` : null].filter(Boolean).join(' · ');
 
   const cells = FUELS.filter((f) => s.prices[f.key] != null).map((f) => `
     <div class="price-cell ${f.key === state.fuel ? 'selected' : ''}">
@@ -313,18 +322,18 @@ function sheetHTML(s) {
       <div>
         <div class="sheet-name">${name}</div>
         <div class="sheet-town">${townLine}</div>
-        ${cheapest && s.prices[state.fuel] != null ? '<span class="best-tag">Mejor precio de la isla</span>' : ''}
+        ${cheapest && s.prices[state.fuel] != null ? BEST_TAG : ''}
       </div>
     </div>
     <div class="sheet-rows">
       <div class="sheet-row">
-        <svg class="ic"><use href="#i-pin"/></svg>
+        <svg class="ilc" aria-hidden="true"><use href="#il-pin"/></svg>
         <span class="sheet-row-text">${titleCase(s.address)}
           <span class="sheet-row-sub">${titleCase(s.locality || s.town)}</span>
         </span>
       </div>
       ${s.schedule ? `<div class="sheet-row">
-        <svg class="ic"><use href="#i-clock"/></svg>
+        <svg class="ilc" aria-hidden="true"><use href="#il-clock"/></svg>
         <span class="sheet-row-text">${s.schedule}
           ${openSub ? `<span class="sheet-row-sub ${st.open ? 'is-open' : 'is-closed'}">${openSub}</span>` : ''}
         </span>
