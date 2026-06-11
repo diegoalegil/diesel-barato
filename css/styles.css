@@ -111,6 +111,11 @@ button {
   touch-action: manipulation;
 }
 
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .ic {
   width: 1.05em;
   height: 1.05em;
@@ -238,6 +243,9 @@ button {
   font-size: 14.5px;
   font-weight: 500;
   border-radius: 8px;
+  /* objetivo táctil más generoso sin mover el layout */
+  padding: 10px 4px;
+  margin: -10px -4px;
 }
 
 .updated-inline:active { opacity: 0.6; }
@@ -346,6 +354,7 @@ button {
   border: 0.5px solid var(--hair);
   border-radius: 16px;
   box-shadow: var(--shadow-card);
+  animation: card-in 0.45s var(--ease-ios) both;
 }
 
 .dto-label {
@@ -366,6 +375,7 @@ button {
   font-size: 14px;
   line-height: 1.5;
   color: var(--ink);
+  text-wrap: balance;
   animation: card-in 0.45s var(--ease-ios) both;
 }
 
@@ -425,7 +435,12 @@ button {
   gap: 9px;
 }
 
-.card { border-radius: var(--r-lg); }
+.card {
+  border-radius: var(--r-lg);
+  /* listas largas: no pintar lo que no se ve */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 68px;
+}
 
 .card.enter {
   animation: card-in 0.55s var(--ease-ios) both;
@@ -616,7 +631,7 @@ button {
   font-weight: 600;
 }
 
-.error-text { font-size: 14.5px; color: var(--ink-2); max-width: 280px; }
+.error-text { font-size: 14.5px; color: var(--ink-2); max-width: 280px; text-wrap: balance; }
 
 .retry-btn {
   margin-top: 10px;

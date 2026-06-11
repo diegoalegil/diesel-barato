@@ -69,9 +69,12 @@ function brandCase(str) {
     .replace(/[\s,]+(s\.?\s?l\.?u?|s\.?\s?a\.?u?|c\.?\s?b|s\.?\s?coop\w*)\.?$/i, '')
     .replace(/^(e\.?\s?s\.?|eess|estaci[oó]n de servicio)\s+/i, '')
     .trim() || String(str).trim();
+  // solo partículas de enlace en minúscula; los artículos de topónimos
+  // ("El Ramonal", "La Caleta") conservan la mayúscula
+  const particles = new Set(['de', 'del', 'y']);
   return clean.split(/\s+/).map((w, i) => {
     const lw = w.toLowerCase();
-    if (i > 0 && SMALL_WORDS.has(lw)) return lw; // "Red de Combustibles"
+    if (i > 0 && particles.has(lw)) return lw; // "Red de Combustibles"
     if (w.length <= 2 && !SMALL_WORDS.has(lw)) return w.toUpperCase(); // BP
     return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
   }).join(' ');
