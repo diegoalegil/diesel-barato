@@ -72,7 +72,8 @@ export function updatePins({ stations, priceOf, qClassOf, fmtPrice, onSelect }) 
       html: `<div class="pin ${qClassOf(price)}">${fmtPrice(price)}</div>`,
       iconSize: [0, 0],
     });
-    L.marker([s.lat, s.lng], { icon })
+    // en racimos, el pin más barato queda siempre encima
+    L.marker([s.lat, s.lng], { icon, zIndexOffset: Math.round((2.5 - price) * 1000) })
       .on('click', () => onSelect(s))
       .addTo(pinLayer);
   }

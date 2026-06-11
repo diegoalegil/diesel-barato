@@ -9,8 +9,8 @@
   --card-press: #F4EEE2;
   --ink: #2A251C;
   --ink-2: #6F6754;
-  --ink-3: #A39880;
-  --accent: #C2613E;
+  --ink-3: #857A5E;
+  --accent: #AE5230;
   --accent-soft: #F3DDD2;
   --hair: rgba(70, 56, 34, 0.10);
   --hair-strong: rgba(70, 56, 34, 0.16);
@@ -56,7 +56,7 @@
     --card-press: #322D25;
     --ink: #EFE8DB;
     --ink-2: #B0A691;
-    --ink-3: #7E7561;
+    --ink-3: #918873;
     --accent: #DD8A62;
     --accent-soft: #45302A;
     --hair: rgba(244, 232, 210, 0.10);
@@ -374,12 +374,18 @@ button {
 .verdict.lose { background: var(--q3-bg); }
 .verdict.lose strong { color: var(--q3); }
 
+/* precio antiguo en línea con el nuevo: la tarjeta no crece */
+.price-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
 .card-price .old {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--ink-3);
   text-decoration: line-through;
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
 }
 
 .stat-value.is-save.is-cost { color: var(--q3); }
@@ -741,10 +747,10 @@ button {
 }
 
 .pin:active { transform: translate(-50%, -50%) scale(0.9); }
-.pin.q0 { background: #55833F; }
-.pin.q1 { background: #9A8430; }
-.pin.q2 { background: #B06A33; }
-.pin.q3 { background: #AC4A2F; }
+.pin.q0 { background: #4A7536; }
+.pin.q1 { background: #7E6A1F; }
+.pin.q2 { background: #96541F; }
+.pin.q3 { background: #9C3E24; }
 
 /* a poco zoom, los pines se vuelven puntos */
 

@@ -69,8 +69,9 @@ function brandCase(str) {
     .replace(/[\s,]+(s\.?\s?l\.?u?|s\.?\s?a\.?u?|c\.?\s?b|s\.?\s?coop\w*)\.?$/i, '')
     .replace(/^(e\.?\s?s\.?|eess|estaci[oó]n de servicio)\s+/i, '')
     .trim() || String(str).trim();
-  return clean.split(/\s+/).map((w) => {
+  return clean.split(/\s+/).map((w, i) => {
     const lw = w.toLowerCase();
+    if (i > 0 && SMALL_WORDS.has(lw)) return lw; // "Red de Combustibles"
     if (w.length <= 2 && !SMALL_WORDS.has(lw)) return w.toUpperCase(); // BP
     return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
   }).join(' ');
@@ -289,9 +290,9 @@ function renderStats() {
   if (state.fuel === 'repsol') {
     const reps = list.filter(isRepsol);
     const others = list.filter((s) => !isRepsol(s));
-    statMinLabel.textContent = `Mejor Repsol (−${state.dto} ct)`;
+    statMinLabel.textContent = 'Mejor Repsol';
     statAvgLabel.textContent = 'Mejor del resto';
-    statSaveLabel.textContent = 'Diferencia por depósito';
+    statSaveLabel.textContent = 'Diferencia (50 L)';
     if (!reps.length || !others.length) {
       statMin.textContent = statAvg.textContent = statSave.textContent = '—';
       return;
@@ -338,8 +339,8 @@ function renderVerdict() {
   verdictEl.classList.remove('win', 'lose');
   verdictEl.classList.add(win ? 'win' : 'lose');
   verdictEl.innerHTML = win
-    ? `<strong>Te compensa la Repsol</strong> de ${shortTown(bestR.town)}: con −${state.dto} ct pagarías ${fmtPrice(pr)} €/L, frente a ${fmtPrice(po)} €/L en ${brandCase(bestO.brand)} (${shortTown(bestO.town)}).`
-    : `<strong>Aun con −${state.dto} ct sale mejor ${brandCase(bestO.brand)}</strong> en ${shortTown(bestO.town)}: ${fmtPrice(po)} €/L frente a los ${fmtPrice(pr)} €/L de la Repsol más barata (${shortTown(bestR.town)}).`;
+    ? `<strong>Te compensa la Repsol</strong> de ${shortTown(bestR.town)}: ${fmtPrice(pr)} € frente a ${fmtPrice(po)} € de ${brandCase(bestO.brand)}.`
+    : `<strong>Sale mejor ${brandCase(bestO.brand)}</strong> (${shortTown(bestO.town)}): ${fmtPrice(po)} € frente a ${fmtPrice(pr)} € de la mejor Repsol.`;
   verdictEl.hidden = false;
 }
 
@@ -367,8 +368,10 @@ function cardHTML(s, rank, qClassOf, cheapestId, animate) {
         ${tag}
       </span>
       <span class="card-price ${qClassOf(price)}">
-        ${price !== base ? `<span class="old">${fmtPrice(base)}</span>` : ''}
-        <span class="num">${fmtPrice(price)}</span>
+        <span class="price-line">
+          ${price !== base ? `<span class="old">${fmtPrice(base)}</span>` : ''}
+          <span class="num">${fmtPrice(price)}</span>
+        </span>
         <span class="unit">€ / litro</span>
       </span>
     </button>
@@ -421,7 +424,7 @@ function sheetHTML(s) {
   const townLine = [shortTown(s.town), s._km != null ? `a ${formatKm(s._km)}` : null].filter(Boolean).join(' · ');
 
   const cells = FUELS.filter((f) => s.prices[f.key] != null).map((f) => `
-    <div class="price-cell ${f.key === state.fuel ? 'selected' : ''}">
+    <div class="price-cell ${f.key === fuelKey() ? 'selected' : ''}">
       <span class="price-cell-label">${f.full}</span>
       <span class="price-cell-value">${fmtPrice(s.prices[f.key])} €</span>
     </div>`).join('');
@@ -443,7 +446,7 @@ function sheetHTML(s) {
       <div class="sheet-row">
         <svg class="ilc" aria-hidden="true"><use href="#il-pin"/></svg>
         <span class="sheet-row-text">${titleCase(s.address)}
-          <span class="sheet-row-sub">${titleCase(s.locality || s.town)}</span>
+          <span class="sheet-row-sub">${shortTown(s.locality || s.town)}</span>
         </span>
       </div>
       ${s.schedule ? `<div class="sheet-row">
