@@ -2,8 +2,8 @@
 // Uso:    node visual-check.mjs [baseURL]
 // Setup (una vez):  npm i -D playwright  &&  npx playwright install chromium
 //
-// Copia este archivo a la raíz del repo y pega el bloque CONFIG que viene
-// en el NOTAS.md de ese proyecto. Lo único que cambias es CONFIG.
+// Captura la app en varios viewports para auditarla visualmente.
+// Lo único que se cambia por proyecto es el bloque CONFIG.
 import { chromium } from 'playwright';
 import { mkdirSync, rmSync } from 'fs';
 
