@@ -9,11 +9,10 @@ const CACHE_KEY = 'db.cache.v1';
 // Tenerife queda al este de este meridiano; La Gomera, La Palma y El Hierro al oeste.
 const TENERIFE_MIN_LNG = -17.03;
 
+// solo diésel (Diego no usa gasolina); el premium = Gasóleo Premium con aditivos
 export const FUELS = [
   { key: 'diesel',     label: 'Diésel',  full: 'Diésel (Gasóleo A)', api: 'Precio Gasoleo A' },
   { key: 'dieselPlus', label: 'Premium', full: 'Diésel Premium',     api: 'Precio Gasoleo Premium' },
-  { key: 'g95',        label: 'G95',     full: 'Gasolina 95 E5',     api: 'Precio Gasolina 95 E5' },
-  { key: 'g98',        label: 'G98',     full: 'Gasolina 98 E5',     api: 'Precio Gasolina 98 E5' },
 ];
 
 function num(s) {

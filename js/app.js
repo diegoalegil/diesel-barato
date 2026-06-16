@@ -587,15 +587,34 @@ function logFormHTML(s) {
   </div>`;
 }
 
-function monthKey(ts) {
+const pad2 = (n) => String(n).padStart(2, '0');
+
+function startOfWeek(ts) {
   const d = new Date(ts);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // lunes como inicio
+  return d;
 }
-function monthLabel(key) {
-  const [y, m] = key.split('-').map(Number);
+function weekKey(ts) { const d = startOfWeek(ts); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function weekLabel(k) {
+  const [y, m, dd] = k.split('-').map(Number);
+  const a = new Date(y, m - 1, dd), b = new Date(y, m - 1, dd + 6);
+  const f = (d) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  return `${f(a)} – ${f(b)}`;
+}
+function monthKey(ts) { const d = new Date(ts); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`; }
+function monthLabel(k) {
+  const [y, m] = k.split('-').map(Number);
   const s = new Date(y, m - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+const PERIODS = {
+  week:  { tab: 'Semana', key: weekKey,  label: weekLabel,                 cur: 'Esta semana', unit: 'semana' },
+  month: { tab: 'Mes',    key: monthKey, label: monthLabel,                cur: 'Este mes',    unit: 'mes' },
+  year:  { tab: 'Año',    key: (ts) => String(new Date(ts).getFullYear()), label: (k) => k, cur: 'Este año', unit: 'año' },
+};
+let logPeriod = 'month';
 
 function renderLog() {
   const log = loadLog().sort((a, b) => b.ts - a.ts);
@@ -608,22 +627,26 @@ function renderLog() {
     return;
   }
 
-  // agrupar por mes
-  const byMonth = new Map();
+  const P = PERIODS[logPeriod];
+  const groups = new Map();
   for (const e of log) {
-    const k = monthKey(e.ts);
-    if (!byMonth.has(k)) byMonth.set(k, { total: 0, liters: 0, n: 0 });
-    const g = byMonth.get(k);
+    const k = P.key(e.ts);
+    if (!groups.has(k)) groups.set(k, { total: 0, liters: 0, n: 0 });
+    const g = groups.get(k);
     g.total += e.total; g.liters += e.liters; g.n += 1;
   }
-  const months = [...byMonth.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  const maxTotal = Math.max(...months.map(([, g]) => g.total));
-  const cur = months[0][1];
+  const ordered = [...groups.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  const maxTotal = Math.max(...ordered.map(([, g]) => g.total));
+  const cur = ordered[0][1];
+  const avg = ordered.reduce((s, [, g]) => s + g.total, 0) / ordered.length;
 
-  const monthRows = months.map(([k, g]) => `
+  const toggle = `<div class="log-period">${Object.entries(PERIODS).map(([k, p]) =>
+    `<button class="log-period-btn" type="button" data-period="${k}" aria-pressed="${k === logPeriod}">${p.tab}</button>`).join('')}</div>`;
+
+  const bars = ordered.map(([k, g]) => `
     <div class="log-month">
       <div class="log-month-top">
-        <span class="log-month-name">${monthLabel(k)}</span>
+        <span class="log-month-name">${P.label(k)}</span>
         <span class="log-month-total">${nfEuro.format(g.total)} €</span>
       </div>
       <div class="log-bar"><span style="width:${Math.max(4, (g.total / maxTotal) * 100)}%"></span></div>
@@ -643,13 +666,14 @@ function renderLog() {
     </li>`).join('');
 
   logBody.innerHTML = `
+    ${toggle}
     <div class="log-summary">
-      <span class="log-summary-label">Este mes (${monthLabel(months[0][0])})</span>
+      <span class="log-summary-label">${P.cur}</span>
       <span class="log-summary-total">${nfEuro.format(cur.total)} €</span>
-      <span class="log-summary-sub">${nfL.format(cur.liters)} L · ${cur.n} repostaje${cur.n > 1 ? 's' : ''}</span>
+      <span class="log-summary-sub">${nfL.format(cur.liters)} L · ${cur.n} repostaje${cur.n > 1 ? 's' : ''} · media ${nfEuro.format(avg)} €/${P.unit}</span>
     </div>
-    <div class="log-section-title">Por mes</div>
-    ${monthRows}
+    <div class="log-section-title">Por ${P.unit}</div>
+    ${bars}
     <div class="log-section-title">Historial</div>
     <ul class="log-entries">${entryRows}</ul>`;
 }
@@ -735,10 +759,13 @@ logClose.addEventListener('click', () => {
 });
 
 logBody.addEventListener('click', (e) => {
+  const per = e.target.closest('[data-period]');
+  if (per) { logPeriod = per.dataset.period; renderLog(); return; }
   const del = e.target.closest('[data-del]');
-  if (!del) return;
-  saveLog(loadLog().filter((x) => x.id !== del.dataset.del));
-  renderLog();
+  if (del) {
+    saveLog(loadLog().filter((x) => x.id !== del.dataset.del));
+    renderLog();
+  }
 });
 
 // ---------- toast ----------

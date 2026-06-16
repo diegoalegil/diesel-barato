@@ -1187,6 +1187,29 @@ button {
   margin: 0 auto;
 }
 
+.log-period { display: flex; gap: 7px; margin-bottom: 14px; }
+
+.log-period-btn {
+  flex: 1;
+  padding: 8px 4px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--card);
+  border: 0.5px solid var(--hair);
+  border-radius: 11px;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.18s var(--ease-pop), background 0.2s, color 0.2s;
+}
+
+.log-period-btn:active { transform: scale(0.95); }
+
+.log-period-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: #FDF9F1;
+  border-color: transparent;
+}
+
 .log-summary {
   display: flex;
   flex-direction: column;
