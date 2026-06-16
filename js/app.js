@@ -44,6 +44,11 @@ const dtoSeg = $('dtoSeg');
 const appsRow = $('appsRow');
 const verdictEl = $('verdict');
 const premiumTip = $('premiumTip');
+const gastosBtn = $('gastosBtn');
+const logView = $('logView');
+const logClose = $('logClose');
+const logBody = $('logBody');
+const sheetBody = $('sheetBody');
 const statMinLabel = $('statMinLabel');
 const statAvgLabel = $('statAvgLabel');
 const statSaveLabel = $('statSaveLabel');
@@ -542,7 +547,111 @@ function sheetHTML(s) {
 }
 
 function openStation(s) {
-  openSheet(sheetHTML(s));
+  openSheet(sheetHTML(s) + logFormHTML(s));
+}
+
+// ---------- registro de repostajes (localStorage) ----------
+
+const LOG_KEY = 'db.log.v1';
+
+function loadLog() {
+  try { const a = JSON.parse(localStorage.getItem(LOG_KEY)); return Array.isArray(a) ? a : []; }
+  catch { return []; }
+}
+function saveLog(arr) {
+  try { localStorage.setItem(LOG_KEY, JSON.stringify(arr)); } catch {}
+}
+
+const nfL = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+
+// formulario plegable al final de la ficha: "Registrar repostaje aquí"
+function logFormHTML(s) {
+  const price = priceOf(s);
+  const fuelName = (FUELS.find((f) => f.key === state.fuel) || FUELS[0]).label;
+  return `<div class="sheet-log" data-station="${s.id}" data-fuel="${state.fuel}" data-price="${price ?? ''}">
+    <button class="log-open" type="button" data-log-open>
+      <svg class="ic" aria-hidden="true"><use href="#il-coin"/></svg> He repostado aquí
+    </button>
+    <form class="log-form" hidden>
+      <div class="log-fields">
+        <label class="log-field">Litros
+          <input class="log-liters" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" autocomplete="off">
+        </label>
+        <label class="log-field">€ / litro (${fuelName})
+          <input class="log-price" type="number" inputmode="decimal" min="0" step="0.001" value="${price != null ? price.toFixed(3) : ''}" autocomplete="off">
+        </label>
+      </div>
+      <div class="log-total">Total <strong>—</strong></div>
+      <button class="log-save" type="submit" disabled>Guardar repostaje</button>
+    </form>
+  </div>`;
+}
+
+function monthKey(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+function monthLabel(key) {
+  const [y, m] = key.split('-').map(Number);
+  const s = new Date(y, m - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function renderLog() {
+  const log = loadLog().sort((a, b) => b.ts - a.ts);
+  if (!log.length) {
+    logBody.innerHTML = `<div class="log-empty">
+      <svg class="empty-ic" aria-hidden="true"><use href="#il-coin"/></svg>
+      <p>Aún no has registrado ningún repostaje.</p>
+      <p class="log-empty-sub">Cuando repostes, ábrelo desde la ficha de la gasolinera y pulsa “He repostado aquí”.</p>
+    </div>`;
+    return;
+  }
+
+  // agrupar por mes
+  const byMonth = new Map();
+  for (const e of log) {
+    const k = monthKey(e.ts);
+    if (!byMonth.has(k)) byMonth.set(k, { total: 0, liters: 0, n: 0 });
+    const g = byMonth.get(k);
+    g.total += e.total; g.liters += e.liters; g.n += 1;
+  }
+  const months = [...byMonth.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  const maxTotal = Math.max(...months.map(([, g]) => g.total));
+  const cur = months[0][1];
+
+  const monthRows = months.map(([k, g]) => `
+    <div class="log-month">
+      <div class="log-month-top">
+        <span class="log-month-name">${monthLabel(k)}</span>
+        <span class="log-month-total">${nfEuro.format(g.total)} €</span>
+      </div>
+      <div class="log-bar"><span style="width:${Math.max(4, (g.total / maxTotal) * 100)}%"></span></div>
+      <div class="log-month-sub">${nfL.format(g.liters)} L · ${g.n} repostaje${g.n > 1 ? 's' : ''} · ${nfPrice.format(g.total / g.liters)} €/L medio</div>
+    </div>`).join('');
+
+  const entryRows = log.map((e) => `
+    <li class="log-entry">
+      <div class="log-entry-main">
+        <span class="log-entry-brand">${e.brand}</span>
+        <span class="log-entry-meta">${new Date(e.ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${nfL.format(e.liters)} L · ${nfPrice.format(e.price)} €/L</span>
+      </div>
+      <span class="log-entry-total">${nfEuro.format(e.total)} €</span>
+      <button class="log-del" data-del="${e.id}" aria-label="Borrar repostaje">
+        <svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg>
+      </button>
+    </li>`).join('');
+
+  logBody.innerHTML = `
+    <div class="log-summary">
+      <span class="log-summary-label">Este mes (${monthLabel(months[0][0])})</span>
+      <span class="log-summary-total">${nfEuro.format(cur.total)} €</span>
+      <span class="log-summary-sub">${nfL.format(cur.liters)} L · ${cur.n} repostaje${cur.n > 1 ? 's' : ''}</span>
+    </div>
+    <div class="log-section-title">Por mes</div>
+    ${monthRows}
+    <div class="log-section-title">Historial</div>
+    <ul class="log-entries">${entryRows}</ul>`;
 }
 
 listEl.addEventListener('click', (e) => {
@@ -561,6 +670,76 @@ const openFromLink = (e) => {
 };
 verdictEl.addEventListener('click', openFromLink);
 premiumTip.addEventListener('click', openFromLink);
+
+// ---------- formulario de repostaje dentro de la ficha ----------
+
+sheetBody.addEventListener('click', (e) => {
+  const open = e.target.closest('[data-log-open]');
+  if (!open) return;
+  const form = open.parentElement.querySelector('.log-form');
+  open.hidden = true;
+  form.hidden = false;
+  form.querySelector('.log-liters').focus();
+});
+
+function logTotal(form) {
+  const l = parseFloat(form.querySelector('.log-liters').value);
+  const p = parseFloat(form.querySelector('.log-price').value);
+  return Number.isFinite(l) && Number.isFinite(p) && l > 0 && p > 0 ? l * p : null;
+}
+
+sheetBody.addEventListener('input', (e) => {
+  const form = e.target.closest('.log-form');
+  if (!form) return;
+  const t = logTotal(form);
+  form.querySelector('.log-total strong').textContent = t != null ? `${nfEuro.format(t)} €` : '—';
+  form.querySelector('.log-save').disabled = t == null;
+});
+
+sheetBody.addEventListener('submit', (e) => {
+  const form = e.target.closest('.log-form');
+  if (!form) return;
+  e.preventDefault();
+  const wrap = form.closest('.sheet-log');
+  const t = logTotal(form);
+  if (t == null) return;
+  const s = state.stations.find((x) => x.id === wrap.dataset.station);
+  const liters = parseFloat(form.querySelector('.log-liters').value);
+  const price = parseFloat(form.querySelector('.log-price').value);
+  const entry = {
+    id: `${Date.now()}-${Math.round(liters * 100)}`,
+    ts: Date.now(),
+    stationId: wrap.dataset.station,
+    brand: s ? brandCase(s.brand) : 'Gasolinera',
+    town: s ? shortTown(s.town) : '',
+    fuel: wrap.dataset.fuel,
+    liters,
+    price,
+    total: t,
+  };
+  saveLog([entry, ...loadLog()]);
+  closeSheet();
+  toast(`Repostaje guardado · ${nfEuro.format(t)} €`);
+});
+
+// ---------- vista de gastos ----------
+
+gastosBtn.addEventListener('click', () => {
+  renderLog();
+  logView.hidden = false;
+});
+
+logClose.addEventListener('click', () => {
+  logView.classList.add('closing');
+  setTimeout(() => { logView.hidden = true; logView.classList.remove('closing'); }, 300);
+});
+
+logBody.addEventListener('click', (e) => {
+  const del = e.target.closest('[data-del]');
+  if (!del) return;
+  saveLog(loadLog().filter((x) => x.id !== del.dataset.del));
+  renderLog();
+});
 
 // ---------- toast ----------
 

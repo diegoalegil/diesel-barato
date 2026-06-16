@@ -65,6 +65,9 @@
 
   <main id="main">
     <header class="hero">
+      <button class="gastos-btn" id="gastosBtn" aria-label="Mis repostajes y gastos">
+        <svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg>
+      </button>
       <svg class="hero-art" viewBox="0 0 390 168" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
         <circle cx="312" cy="72" r="22" fill="var(--art-sun)"/>
         <path d="M250 74c4-4 8-4 12 0" stroke="var(--art-bird)" stroke-width="2" fill="none" stroke-linecap="round"/>
@@ -212,6 +215,18 @@
     </button>
   </div>
 
+  <!-- Vista de gastos / repostajes -->
+  <div class="logview" id="logView" hidden>
+    <div class="logview-head">
+      <h2 class="logview-title">Mis repostajes</h2>
+      <button class="logview-close" id="logClose" aria-label="Cerrar">
+        <svg class="ic" aria-hidden="true"><use href="#i-list"/></svg>
+        Lista
+      </button>
+    </div>
+    <div class="logview-body" id="logBody"></div>
+  </div>
+
   <!-- Hoja de detalle -->
   <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
   <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Detalle de gasolinera">
@@ -234,6 +249,12 @@
       </symbol>
       <symbol id="i-list" viewBox="0 0 24 24">
         <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="i-chart" viewBox="0 0 24 24">
+        <path d="M4 21V11M9.3 21V4M14.6 21v-7M20 21V8M3 21h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24">
+        <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </symbol>
 
       <!-- iconitos ilustrados, estilo cálido -->

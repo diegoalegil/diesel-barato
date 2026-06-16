@@ -211,6 +211,27 @@ button {
 
 .hero { margin: 4px -16px 0; position: relative; }
 
+.gastos-btn {
+  position: absolute;
+  top: calc(var(--sat) + 10px);
+  right: 14px;
+  z-index: 5;
+  display: inline-grid;
+  place-items: center;
+  width: 38px; height: 38px;
+  color: var(--ink);
+  background: var(--material);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  backdrop-filter: blur(16px) saturate(1.6);
+  border: 0.5px solid var(--hair-strong);
+  border-radius: 50%;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s var(--ease-pop);
+}
+
+.gastos-btn .ic { width: 18px; height: 18px; }
+.gastos-btn:active { transform: scale(0.9); }
+
 .hero-art {
   display: block;
   width: 100%;
@@ -1033,6 +1054,257 @@ button {
 }
 
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- formulario de repostaje en la ficha ---------- */
+
+.sheet-log { padding-top: 14px; }
+
+.log-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+  padding: 13px 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--bg);
+  border: 0.5px solid var(--hair-strong);
+  border-radius: 15px;
+  transition: transform 0.2s var(--ease-pop), background 0.2s;
+}
+
+.log-open .ic { color: var(--accent); }
+.log-open:active { transform: scale(0.97); background: var(--card-press); }
+
+.log-form { animation: card-in 0.35s var(--ease-ios) both; }
+
+.log-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+
+.log-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.log-field input {
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 0.5px solid var(--hair-strong);
+  border-radius: var(--r-md);
+  width: 100%;
+}
+
+.log-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.log-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.log-total strong {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 640;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-save {
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #FDF9F1;
+  background: var(--accent);
+  border-radius: 15px;
+  transition: transform 0.2s var(--ease-pop), opacity 0.2s;
+}
+
+.log-save:disabled { opacity: 0.4; }
+.log-save:not(:disabled):active { transform: scale(0.97); opacity: 0.9; }
+
+/* ---------- vista de gastos ---------- */
+
+.logview {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  animation: map-in 0.4s var(--ease-ios);
+}
+
+.logview.closing { animation: map-out 0.3s var(--ease-ios) forwards; }
+
+.logview-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(var(--sat) + 14px) 18px 12px;
+  border-bottom: 0.5px solid var(--hair);
+}
+
+.logview-title {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 600;
+  font-variation-settings: 'opsz' 40;
+}
+
+.logview-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 6px 4px;
+}
+
+.logview-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px calc(var(--sab) + 28px);
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.log-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 18px 20px;
+  background: var(--card);
+  border: 0.5px solid var(--hair);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.log-summary-label { font-size: 13px; color: var(--ink-2); }
+
+.log-summary-total {
+  font-family: var(--serif);
+  font-size: 34px;
+  font-weight: 620;
+  font-variation-settings: 'opsz' 60;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.log-summary-sub { font-size: 13.5px; color: var(--ink-2); margin-top: 2px; }
+
+.log-section-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-transform: none;
+  margin: 22px 2px 10px;
+}
+
+.log-month { margin-bottom: 14px; }
+
+.log-month-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 14.5px;
+}
+
+.log-month-name { font-weight: 600; color: var(--ink); }
+.log-month-total {
+  font-family: var(--serif);
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(70, 56, 34, 0.08);
+  margin: 6px 0 4px;
+  overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  .log-bar { background: rgba(244, 232, 210, 0.08); }
+}
+
+.log-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.log-month-sub { font-size: 12.5px; color: var(--ink-2); }
+
+.log-entries { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+
+.log-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  background: var(--card);
+  border: 0.5px solid var(--hair);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-card);
+}
+
+.log-entry-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.log-entry-brand { font-size: 14.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-entry-meta { font-size: 12.5px; color: var(--ink-2); }
+
+.log-entry-total {
+  font-family: var(--serif);
+  font-size: 16px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-del {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  color: var(--ink-3);
+  border-radius: 10px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.log-del .ic { width: 17px; height: 17px; }
+.log-del:active { color: var(--q3); background: var(--q3-bg); }
+
+.log-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 56px 28px;
+  color: var(--ink-2);
+}
+
+.log-empty p { font-size: 15px; }
+.log-empty-sub { font-size: 13.5px; color: var(--ink-3); max-width: 280px; text-wrap: balance; }
 
 /* ---------- reduced motion ---------- */
 
