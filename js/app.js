@@ -9,9 +9,10 @@ const state = {
   stations: [],
   fecha: null,
   fromCache: false,
-  fuel: 'diesel', // clave de combustible o 'repsol' (comparador con descuento)
+  fuel: 'diesel',  // combustible: diesel | dieselPlus | g95 | g98
+  mode: null,      // app de descuento activa: null | 'waylet' | 'moeve' | 'disa'
   sort: 'price',
-  dto: 5, // descuento Repsol en céntimos por litro
+  dto: 5,          // céntimos de descuento de la app activa
   pos: null,
   mapOpen: false,
 };
@@ -40,6 +41,7 @@ const toastEl = $('toast');
 const ptrEl = $('ptr');
 const dtoRow = $('dtoRow');
 const dtoSeg = $('dtoSeg');
+const appsRow = $('appsRow');
 const verdictEl = $('verdict');
 const statMinLabel = $('statMinLabel');
 const statAvgLabel = $('statAvgLabel');
@@ -151,16 +153,23 @@ function brandLogo(brand) {
   return k ? `icons/brands/${k}.png` : null;
 }
 
-const isRepsol = (s) => brandKey(s.brand) === 'repsol';
+// Apps de descuento. Cada una filtra a sus r\u00f3tulos y resta c\u00e9ntimos al precio.
+// El match usa brandKey (normaliza acentos y mapea "el mirador"/"la caleta" \u2192 cepsa),
+// no un substring crudo, para que las Cepsa "encubiertas" entren en el modo Moeve.
+// Waylet\u2192Repsol \u00b7 Moeve(Club gow)\u2192Cepsa/Moeve \u00b7 DISA(Mi Energ\u00eda)\u2192Disa/Shell (Cepsa NO).
+const DISCOUNT_MODES = {
+  waylet: { app: 'Waylet', net: 'Repsol',      brands: ['repsol'],         tiers: [5, 10], note: 'saldo Waylet' },
+  moeve:  { app: 'Moeve',  net: 'Cepsa/Moeve', brands: ['moeve', 'cepsa'], tiers: [5, 10], note: 'saldo Moeve gow' },
+  disa:   { app: 'DISA',   net: 'Disa/Shell',  brands: ['disa', 'shell'],  tiers: [3, 5],  note: 'app Mi Energ\u00eda DISA' },
+};
 
-// combustible real del modo actual (el comparador Repsol trabaja sobre di\u00e9sel)
-const fuelKey = () => (state.fuel === 'repsol' ? 'diesel' : state.fuel);
+const inMode = (s) => !!state.mode && DISCOUNT_MODES[state.mode].brands.includes(brandKey(s.brand));
 
-// precio efectivo: en modo Repsol, las Repsol llevan el descuento aplicado
+// precio efectivo: con una app activa, sus estaciones llevan el descuento aplicado
 function priceOf(s) {
-  const p = s.prices[fuelKey()];
+  const p = s.prices[state.fuel];
   if (p == null) return null;
-  return state.fuel === 'repsol' && isRepsol(s) ? p - state.dto / 100 : p;
+  return inMode(s) ? p - state.dto / 100 : p;
 }
 
 function monoHTML(s, name) {
@@ -236,9 +245,9 @@ function stationsAvailable() {
   return state.stations.filter((s) => priceOf(s) != null);
 }
 
-// Escala de color relativa al conjunto que se MUESTRA: en modo Repsol son solo las
-// Repsol (¿cuál es barata para ser Repsol?), no toda la isla — así el verde/rojo es
-// coherente con la pestaña. La comparación con el resto vive en stats y veredicto.
+// Escala de color relativa al conjunto que se MUESTRA: con una app activa son solo sus
+// estaciones (¿cuál es barata dentro de esa red?), no toda la isla — así el verde/rojo
+// es coherente con lo que ves. La comparación con el resto vive en stats y veredicto.
 function makeQClass(pool) {
   const prices = (pool || stationsAvailable()).map(priceOf).filter((p) => p != null).sort((a, b) => a - b);
   if (!prices.length) return () => 'q1';
@@ -257,10 +266,10 @@ function cheapestStation(pool) {
 }
 
 function sortedStations() {
-  // en modo Repsol la lista muestra SOLO estaciones Repsol (con su descuento);
+  // con una app activa, la lista muestra SOLO sus estaciones (con su descuento);
   // la comparación con el resto vive en las stats y el veredicto
   let list = stationsAvailable();
-  if (state.fuel === 'repsol') list = list.filter(isRepsol);
+  if (state.mode) list = list.filter(inMode);
   if (state.sort === 'near' && state.pos) {
     return list.sort((a, b) => (a._km ?? 1e9) - (b._km ?? 1e9) || priceOf(a) - priceOf(b));
   }
@@ -312,20 +321,21 @@ function renderStats() {
     return;
   }
 
-  if (state.fuel === 'repsol') {
-    const reps = list.filter(isRepsol);
-    const others = list.filter((s) => !isRepsol(s));
-    statMinLabel.textContent = 'Mejor Repsol';
+  if (state.mode) {
+    const cfg = DISCOUNT_MODES[state.mode];
+    const mine = list.filter(inMode);
+    const others = list.filter((s) => !inMode(s));
+    statMinLabel.textContent = `Con ${cfg.app}`;
     statAvgLabel.textContent = 'Mejor del resto';
     statSaveLabel.textContent = 'Diferencia (50 L)';
-    if (!reps.length || !others.length) {
+    if (!mine.length || !others.length) {
       statMin.textContent = statAvg.textContent = statSave.textContent = '—';
       return;
     }
-    const bestR = Math.min(...reps.map(priceOf));
+    const bestM = Math.min(...mine.map(priceOf));
     const bestO = Math.min(...others.map(priceOf));
-    const diff = (bestO - bestR) * 50; // positivo = la Repsol te ahorra dinero
-    animateValue(statMin, bestR, (v) => `${nfPrice.format(v)} €`);
+    const diff = (bestO - bestM) * 50; // positivo = tu app te ahorra dinero
+    animateValue(statMin, bestM, (v) => `${nfPrice.format(v)} €`);
     animateValue(statAvg, bestO, (v) => `${nfPrice.format(v)} €`);
     animateValue(statSave, diff, (v) => `${v >= 0 ? '+' : '−'}${nfEuro.format(Math.abs(v))} €`);
     statSave.classList.toggle('is-cost', diff < 0);
@@ -345,27 +355,28 @@ function renderStats() {
 }
 
 function renderVerdict() {
-  if (state.fuel !== 'repsol') {
+  if (!state.mode) {
     verdictEl.hidden = true;
     return;
   }
+  const cfg = DISCOUNT_MODES[state.mode];
   const list = stationsAvailable();
-  const reps = list.filter(isRepsol);
-  const others = list.filter((s) => !isRepsol(s));
-  if (!reps.length || !others.length) {
+  const mine = list.filter(inMode);
+  const others = list.filter((s) => !inMode(s));
+  if (!mine.length || !others.length) {
     verdictEl.hidden = true;
     return;
   }
-  const bestR = cheapestStation(reps);
+  const bestM = cheapestStation(mine);
   const bestO = cheapestStation(others);
-  const pr = priceOf(bestR);
+  const pr = priceOf(bestM);
   const po = priceOf(bestO);
   const win = pr <= po;
   verdictEl.classList.remove('win', 'lose');
   verdictEl.classList.add(win ? 'win' : 'lose');
   verdictEl.innerHTML = win
-    ? `<strong>Te compensa la Repsol</strong> de ${shortTown(bestR.town)}: ${fmtPrice(pr)} € frente a ${fmtPrice(po)} € de ${brandCase(bestO.brand)}.`
-    : `<strong>Sale mejor ${brandCase(bestO.brand)}</strong> (${shortTown(bestO.town)}): ${fmtPrice(po)} € frente a ${fmtPrice(pr)} € de la mejor Repsol. <button class="verdict-link" data-id="${bestO.id}">Ver ${brandCase(bestO.brand)} →</button>`;
+    ? `<strong>Con ${cfg.app} te sale mejor</strong>: ${fmtPrice(pr)} € en ${shortTown(bestM.town)} frente a ${fmtPrice(po)} € de ${brandCase(bestO.brand)}.`
+    : `<strong>Sale mejor ${brandCase(bestO.brand)}</strong> (${shortTown(bestO.town)}): ${fmtPrice(po)} € frente a ${fmtPrice(pr)} € con ${cfg.app}. <button class="verdict-link" data-id="${bestO.id}">Ver ${brandCase(bestO.brand)} →</button>`;
   verdictEl.hidden = false;
 }
 
@@ -375,7 +386,7 @@ function bestTagHTML(label) {
 
 function cardHTML(s, rank, qClassOf, cheapestId, cheapestTag, animate) {
   const price = priceOf(s);
-  const base = s.prices[fuelKey()];
+  const base = s.prices[state.fuel];
   const st = scheduleStatus(s.schedule);
   const open = openLabel(st);
   const name = brandCase(s.brand);
@@ -408,19 +419,20 @@ function renderList(animate = true) {
   const list = sortedStations();
   const qClassOf = makeQClass(list); // colorear relativo a lo que se ve
   const cheapestId = list.length ? cheapestStation(list).id : null;
-  const cheapestTag = bestTagHTML(state.fuel === 'repsol' ? 'Tu Repsol más barata' : 'Mejor precio de la isla');
+  const cfg = state.mode ? DISCOUNT_MODES[state.mode] : null;
+  const cheapestTag = bestTagHTML(cfg ? `La más barata con ${cfg.app}` : 'Mejor precio de la isla');
 
   if (!list.length) {
     listEl.innerHTML = `<li class="empty-card">
       <svg class="empty-ic" aria-hidden="true"><use href="#il-pump"/></svg>
-      ${state.fuel === 'repsol' ? 'No hay estaciones Repsol con diésel ahora mismo.' : 'Ninguna gasolinera vende este combustible en Tenerife.'}
+      ${cfg ? `No hay estaciones ${cfg.net} con este combustible ahora mismo.` : 'Ninguna gasolinera vende este combustible en Tenerife.'}
     </li>`;
     return;
   }
   listEl.innerHTML = list.map((s, i) => cardHTML(s, i, qClassOf, cheapestId, cheapestTag, animate)).join('');
 
-  heroCount.textContent = state.fuel === 'repsol'
-    ? `${list.length} estaciones Repsol · con Waylet −${state.dto} ct`
+  heroCount.textContent = cfg
+    ? `${list.length} estaciones ${cfg.net} · con ${cfg.app} −${state.dto} ct`
     : `Tenerife · ${list.length} gasolineras con ${FUELS.find((f) => f.key === state.fuel).label}`;
 }
 
@@ -444,15 +456,16 @@ function sheetHTML(s) {
   const st = scheduleStatus(s.schedule);
   const name = brandCase(s.brand);
   const myPrice = priceOf(s);
-  // en modo Repsol "la más barata" es entre las Repsol; en el resto, de toda la isla
-  const pool = state.fuel === 'repsol' ? stationsAvailable().filter(isRepsol) : stationsAvailable();
+  const cfg = state.mode ? DISCOUNT_MODES[state.mode] : null;
+  // con una app activa "la más barata" es dentro de su red; si no, de toda la isla
+  const pool = cfg ? stationsAvailable().filter(inMode) : stationsAvailable();
   const cheapest = myPrice != null && pool.length > 0 && s.id === cheapestStation(pool).id;
-  const cheapestLabel = state.fuel === 'repsol' ? 'Tu Repsol más barata' : 'Mejor precio de la isla';
+  const cheapestLabel = cfg ? `La más barata con ${cfg.app}` : 'Mejor precio de la isla';
 
   const townLine = [shortTown(s.town), s._km != null ? `a ${formatKm(s._km)}` : null].filter(Boolean).join(' · ');
 
   const cells = FUELS.filter((f) => s.prices[f.key] != null).map((f) => `
-    <div class="price-cell ${f.key === fuelKey() ? 'selected' : ''}">
+    <div class="price-cell ${f.key === state.fuel ? 'selected' : ''}">
       <span class="price-cell-label">${f.full}</span>
       <span class="price-cell-value">${fmtPrice(s.prices[f.key])} €</span>
     </div>`).join('');
@@ -483,10 +496,10 @@ function sheetHTML(s) {
           ${openSub ? `<span class="sheet-row-sub ${st.open ? 'is-open' : 'is-closed'}">${openSub}</span>` : ''}
         </span>
       </div>` : ''}
-      ${state.fuel === 'repsol' && isRepsol(s) && s.prices.diesel != null ? `<div class="sheet-row">
+      ${cfg && inMode(s) && priceOf(s) != null ? `<div class="sheet-row">
         <svg class="ilc" aria-hidden="true"><use href="#il-coin"/></svg>
-        <span class="sheet-row-text">Con tu descuento Waylet de −${state.dto} ct
-          <span class="sheet-row-sub">Te sale a ${fmtPrice(priceOf(s))} €/L de diésel (saldo Waylet)</span>
+        <span class="sheet-row-text">Con tu descuento ${cfg.app} de −${state.dto} ct
+          <span class="sheet-row-sub">Te sale a ${fmtPrice(priceOf(s))} €/L (${cfg.note})</span>
         </span>
       </div>` : ''}
     </div>
@@ -543,8 +556,31 @@ fuelSeg.addEventListener('click', (e) => {
   if (!btn || btn.dataset.fuel === state.fuel) return;
   state.fuel = btn.dataset.fuel;
   setSeg(fuelSeg, 'fuel', state.fuel);
-  dtoRow.hidden = state.fuel !== 'repsol';
   renderAll(true);
+});
+
+// apps de descuento: tocar una la activa (lente sobre el combustible actual);
+// tocar la activa otra vez la desactiva → vuelve al modo normal
+function setMode(mode) {
+  state.mode = mode;
+  [...appsRow.querySelectorAll('[data-mode]')].forEach((b) =>
+    b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+  if (mode) {
+    const cfg = DISCOUNT_MODES[mode];
+    state.dto = cfg.tiers[0];
+    const btns = dtoSeg.querySelectorAll('.seg-btn');
+    cfg.tiers.forEach((t, i) => { btns[i].dataset.dto = String(t); btns[i].textContent = `−${t} ct`; });
+    setSeg(dtoSeg, 'dto', String(state.dto));
+  }
+  dtoRow.hidden = !mode;
+  renderAll(true);
+  if (state.mapOpen) updatePins(mapArgs());
+}
+
+appsRow.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-mode]');
+  if (!btn) return;
+  setMode(state.mode === btn.dataset.mode ? null : btn.dataset.mode);
 });
 
 dtoSeg.addEventListener('click', (e) => {
@@ -581,8 +617,8 @@ sortSeg.addEventListener('click', async (e) => {
 // ---------- mapa ----------
 
 function mapArgs() {
-  // mapa coherente con la lista: en modo Repsol, solo pines Repsol
-  const stations = state.fuel === 'repsol' ? state.stations.filter(isRepsol) : state.stations;
+  // mapa coherente con la lista: con una app activa, solo sus pines
+  const stations = state.mode ? state.stations.filter(inMode) : state.stations;
   return {
     stations,
     priceOf,
@@ -718,10 +754,9 @@ if (isStandalone) {
 // ---------- arranque ----------
 
 async function init() {
-  // el descuento Repsol siempre arranca en −5 ct
+  // arranca sin app de descuento activa (modo normal)
   setSeg(fuelSeg, 'fuel', state.fuel);
   setSeg(sortSeg, 'sort', state.sort);
-  setSeg(dtoSeg, 'dto', String(state.dto));
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
