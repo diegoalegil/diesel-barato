@@ -45,6 +45,7 @@ const appsRow = $('appsRow');
 const verdictEl = $('verdict');
 const premiumTip = $('premiumTip');
 const gastosBtn = $('gastosBtn');
+const mainEl = $('main');
 const logView = $('logView');
 const logClose = $('logClose');
 const logBody = $('logBody');
@@ -777,7 +778,7 @@ sheetBody.addEventListener('submit', (e) => {
   const odoRaw = parseFloat(form.querySelector('.log-odo').value);
   const odo = Number.isFinite(odoRaw) && odoRaw > 0 ? odoRaw : null;
   const entry = {
-    id: `${Date.now()}-${Math.round(liters * 100)}`,
+    id: `${Date.now()}-${Math.round(liters * 100)}-${Math.random().toString(36).slice(2, 7)}`,
     ts: Date.now(),
     stationId: wrap.dataset.station,
     brand: s ? brandCase(s.brand) : 'Gasolinera',
@@ -795,15 +796,26 @@ sheetBody.addEventListener('submit', (e) => {
 
 // ---------- vista de gastos ----------
 
+let logLastFocus = null;
+
 gastosBtn.addEventListener('click', () => {
   renderLog();
+  logLastFocus = document.activeElement;
   logView.hidden = false;
+  mainEl.inert = true; // el fondo deja de recibir foco/toques mientras está el overlay
+  logClose.focus({ preventScroll: true });
 });
 
-logClose.addEventListener('click', () => {
+function closeLog() {
+  if (logView.hidden) return;
+  mainEl.inert = false;
   logView.classList.add('closing');
   setTimeout(() => { logView.hidden = true; logView.classList.remove('closing'); }, 300);
-});
+  if (logLastFocus && logLastFocus.focus) logLastFocus.focus({ preventScroll: true });
+  logLastFocus = null;
+}
+
+logClose.addEventListener('click', closeLog);
 
 logBody.addEventListener('click', (e) => {
   const per = e.target.closest('[data-period]');
@@ -842,6 +854,7 @@ fuelSeg.addEventListener('click', (e) => {
   state.fuel = btn.dataset.fuel;
   setSeg(fuelSeg, 'fuel', state.fuel);
   renderAll(true);
+  if (state.mapOpen) updatePins(mapArgs()); // mapa coherente con el combustible elegido
 });
 
 // apps de descuento: tocar una la activa (lente sobre el combustible actual);
@@ -913,27 +926,49 @@ function mapArgs() {
   };
 }
 
+let mapLastFocus = null;
+
 mapBtn.addEventListener('click', async () => {
   state.mapOpen = true;
+  mapLastFocus = document.activeElement;
   mapView.hidden = false;
+  mainEl.inert = true;
   try {
     await showMap({ ...mapArgs(), pos: state.pos });
+    mapClose.focus({ preventScroll: true });
   } catch {
     mapView.hidden = true;
+    mainEl.inert = false;
     state.mapOpen = false;
+    if (mapLastFocus && mapLastFocus.focus) mapLastFocus.focus({ preventScroll: true });
     toast('No se pudo cargar el mapa');
   }
 });
 
-mapClose.addEventListener('click', () => {
+function closeMap() {
+  if (mapView.hidden) return;
   closeSheet();
+  mainEl.inert = false;
   mapView.classList.add('closing');
   setTimeout(() => {
     mapView.hidden = true;
     mapView.classList.remove('closing');
     state.mapOpen = false;
   }, 300); // = duración de map-out
-});
+  if (mapLastFocus && mapLastFocus.focus) mapLastFocus.focus({ preventScroll: true });
+  mapLastFocus = null;
+}
+
+mapClose.addEventListener('click', closeMap);
+
+// Escape cierra los overlays de pantalla completa (la ficha ya tiene el suyo en sheet.js).
+// En captura para correr ANTES del handler de la ficha: si hay una ficha abierta encima
+// (p. ej. desde un pin del mapa), salimos y dejamos que Escape cierre solo la ficha, no el mapa.
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || document.querySelector('.sheet.open')) return;
+  if (!logView.hidden) closeLog();
+  else if (!mapView.hidden) closeMap();
+}, true);
 
 // ---------- carga de datos ----------
 
