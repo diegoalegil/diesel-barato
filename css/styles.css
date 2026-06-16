@@ -305,7 +305,7 @@ button {
   .seg { background: rgba(244, 232, 210, 0.08); }
 }
 
-.seg-fuel { grid-template-columns: repeat(4, 1fr); margin-top: 14px; }
+.seg-fuel { grid-template-columns: repeat(2, 1fr); margin-top: 14px; }
 .seg-sort { grid-template-columns: repeat(2, 1fr); flex: 1; }
 .seg-dto { grid-template-columns: repeat(2, 1fr); flex: 0 0 auto; width: 148px; }
 
@@ -320,7 +320,7 @@ button {
   z-index: -1;
 }
 
-.seg-fuel .seg-thumb { width: calc((100% - 6px) / 4); }
+.seg-fuel .seg-thumb { width: calc((100% - 6px) / 2); }
 .seg-sort .seg-thumb { width: calc((100% - 6px) / 2); }
 .seg-dto .seg-thumb { width: calc((100% - 6px) / 2); }
 
@@ -438,6 +438,25 @@ button {
 }
 
 .verdict-link:active { opacity: 0.6; }
+
+/* ---------- consejo de diésel premium ---------- */
+
+.premium-tip {
+  margin-top: 8px;
+  padding: 13px 16px;
+  border-radius: var(--r-lg);
+  border: 0.5px solid var(--hair);
+  box-shadow: var(--shadow-card);
+  background: var(--accent-soft);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  text-wrap: balance;
+  animation: card-in 0.45s var(--ease-ios) both;
+}
+
+.premium-tip strong { color: var(--accent); }
+.premium-tip .verdict-link { color: var(--accent); }
 
 /* precio antiguo en línea con el nuevo: la tarjeta no crece */
 .price-line {

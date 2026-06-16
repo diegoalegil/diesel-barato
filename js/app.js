@@ -43,6 +43,7 @@ const dtoRow = $('dtoRow');
 const dtoSeg = $('dtoSeg');
 const appsRow = $('appsRow');
 const verdictEl = $('verdict');
+const premiumTip = $('premiumTip');
 const statMinLabel = $('statMinLabel');
 const statAvgLabel = $('statAvgLabel');
 const statSaveLabel = $('statSaveLabel');
@@ -344,14 +345,24 @@ function renderStats() {
 
   statMinLabel.textContent = 'Más barata';
   statAvgLabel.textContent = 'Media de la isla';
-  statSaveLabel.textContent = 'Ahorro por depósito';
-  statSave.classList.remove('is-cost');
   const prices = list.map(priceOf);
   const min = Math.min(...prices);
   const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
   animateValue(statMin, min, (v) => `${nfPrice.format(v)} €`);
   animateValue(statAvg, avg, (v) => `${nfPrice.format(v)} €`);
-  animateValue(statSave, (avg - min) * 50, (v) => `${nfEuro.format(v)} €`);
+
+  if (state.fuel === 'dieselPlus') {
+    // sobreprecio del premium frente al diésel normal más barato
+    const reg = state.stations.map((s) => s.prices.diesel).filter((p) => p != null);
+    const extra = reg.length ? (min - Math.min(...reg)) * 50 : 0;
+    statSaveLabel.textContent = 'Sobreprecio (50 L)';
+    statSave.classList.toggle('is-cost', extra > 0.005);
+    animateValue(statSave, Math.max(0, extra), (v) => `+${nfEuro.format(v)} €`);
+  } else {
+    statSaveLabel.textContent = 'Ahorro por depósito';
+    statSave.classList.remove('is-cost');
+    animateValue(statSave, (avg - min) * 50, (v) => `${nfEuro.format(v)} €`);
+  }
 }
 
 function renderVerdict() {
@@ -382,6 +393,24 @@ function renderVerdict() {
 
 function bestTagHTML(label) {
   return `<span class="best-tag"><svg class="tag-ic" aria-hidden="true"><use href="#il-drop"/></svg>${label}</span>`;
+}
+
+// Consejo de diésel premium: solo en la pestaña Premium y sin app activa (para no apilar
+// tarjetas con el veredicto). Recomienda un repostaje premium ocasional y destaca Shell.
+function renderPremiumTip() {
+  if (state.fuel !== 'dieselPlus' || state.mode) { premiumTip.hidden = true; return; }
+  const prem = stationsAvailable(); // priceOf ya usa dieselPlus aquí
+  if (!prem.length) { premiumTip.hidden = true; return; }
+  const cheapest = cheapestStation(prem);
+  const shells = prem.filter((s) => brandKey(s.brand) === 'shell');
+  const shell = shells.length ? cheapestStation(shells) : null;
+  const shellPart = shell
+    ? ` <button class="verdict-link" data-id="${shell.id}">Shell V-Power: ${fmtPrice(priceOf(shell))} € en ${shortTown(shell.town)} →</button>`
+    : '';
+  premiumTip.innerHTML =
+    `<strong>Diésel premium</strong>: lleva aditivos que limpian el motor, va bien un depósito de vez en cuando. ` +
+    `El más barato: ${brandCase(cheapest.brand)} a ${fmtPrice(priceOf(cheapest))} €.${shellPart}`;
+  premiumTip.hidden = false;
 }
 
 function cardHTML(s, rank, qClassOf, cheapestId, cheapestTag, animate) {
@@ -446,6 +475,7 @@ function renderUpdated() {
 function renderAll(animate = true) {
   renderStats();
   renderVerdict();
+  renderPremiumTip();
   renderList(animate);
   renderUpdated();
 }
@@ -522,13 +552,15 @@ listEl.addEventListener('click', (e) => {
   if (s) openStation(s);
 });
 
-// veredicto: tocar "Ver [rival] →" abre su ficha (la rival no está en la lista de Repsol)
-verdictEl.addEventListener('click', (e) => {
+// veredicto y consejo premium: tocar un enlace con data-id abre esa ficha
+const openFromLink = (e) => {
   const btn = e.target.closest('[data-id]');
   if (!btn) return;
   const s = state.stations.find((x) => x.id === btn.dataset.id);
   if (s) openStation(s);
-});
+};
+verdictEl.addEventListener('click', openFromLink);
+premiumTip.addEventListener('click', openFromLink);
 
 // ---------- toast ----------
 
