@@ -563,6 +563,7 @@ function saveLog(arr) {
 }
 
 const nfL = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+const nf0 = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0, useGrouping: true });
 
 // formulario plegable al final de la ficha: "Registrar repostaje aquí"
 function logFormHTML(s) {
@@ -581,6 +582,10 @@ function logFormHTML(s) {
           <input class="log-price" type="number" inputmode="decimal" min="0" step="0.001" value="${price != null ? price.toFixed(3) : ''}" autocomplete="off">
         </label>
       </div>
+      <label class="log-field log-odo-field">
+        <span>Kilómetros del coche <span class="log-opt">opcional · para el consumo</span></span>
+        <input class="log-odo" type="number" inputmode="numeric" min="0" step="1" placeholder="Ej. 84500" autocomplete="off">
+      </label>
       <div class="log-total">Total <strong>—</strong></div>
       <button class="log-save" type="submit" disabled>Guardar repostaje</button>
     </form>
@@ -617,8 +622,8 @@ const PERIODS = {
 let logPeriod = 'month';
 
 function renderLog() {
-  const log = loadLog().sort((a, b) => b.ts - a.ts);
-  if (!log.length) {
+  const all = loadLog();
+  if (!all.length) {
     logBody.innerHTML = `<div class="log-empty">
       <svg class="empty-ic" aria-hidden="true"><use href="#il-coin"/></svg>
       <p>Aún no has registrado ningún repostaje.</p>
@@ -626,6 +631,26 @@ function renderLog() {
     </div>`;
     return;
   }
+
+  // consumo real (método lleno-a-lleno): emparejar repostajes con cuentakilómetros.
+  // Cada tramo entre dos lecturas de km usa la gasolina repostada en ese tramo.
+  const asc = [...all].sort((a, b) => a.ts - b.ts);
+  let prevOdo = null, bucketL = 0, bucketC = 0, totDist = 0, totL = 0, totC = 0;
+  for (const e of asc) {
+    e._l100 = null;
+    if (e.odo != null) {
+      if (prevOdo != null && e.odo > prevOdo) {
+        const dist = e.odo - prevOdo, fuel = bucketL + e.liters, cost = bucketC + e.total;
+        e._l100 = (fuel / dist) * 100;
+        totDist += dist; totL += fuel; totC += cost;
+      }
+      prevOdo = e.odo; bucketL = 0; bucketC = 0;
+    } else {
+      bucketL += e.liters; bucketC += e.total;
+    }
+  }
+  const hasConsumo = totDist > 0;
+  const log = asc.slice().reverse(); // descendente para mostrar, mismos objetos con _l100
 
   const P = PERIODS[logPeriod];
   const groups = new Map();
@@ -657,13 +682,22 @@ function renderLog() {
     <li class="log-entry">
       <div class="log-entry-main">
         <span class="log-entry-brand">${e.brand}</span>
-        <span class="log-entry-meta">${new Date(e.ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${nfL.format(e.liters)} L · ${nfPrice.format(e.price)} €/L</span>
+        <span class="log-entry-meta">${new Date(e.ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${nfL.format(e.liters)} L · ${nfPrice.format(e.price)} €/L${e._l100 ? ` · ${nfL.format(e._l100)} L/100km` : ''}</span>
       </div>
       <span class="log-entry-total">${nfEuro.format(e.total)} €</span>
       <button class="log-del" data-del="${e.id}" aria-label="Borrar repostaje">
         <svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg>
       </button>
     </li>`).join('');
+
+  const consumo = hasConsumo
+    ? `<div class="log-section-title">Consumo real</div>
+       <div class="log-consumo">
+         <div class="log-consumo-cell"><span class="log-consumo-val">${nfL.format(totL / totDist * 100)}</span><span class="log-consumo-unit">L/100 km</span></div>
+         <div class="log-consumo-cell"><span class="log-consumo-val">${nfEuro.format(totC / totDist * 100)} €</span><span class="log-consumo-unit">por 100 km</span></div>
+         <div class="log-consumo-cell"><span class="log-consumo-val">${nf0.format(totDist)}</span><span class="log-consumo-unit">km medidos</span></div>
+       </div>`
+    : `<div class="log-hint">Apunta los km del cuentakilómetros al repostar y verás tu consumo real (L/100 km) y el coste por 100 km.</div>`;
 
   logBody.innerHTML = `
     ${toggle}
@@ -672,6 +706,7 @@ function renderLog() {
       <span class="log-summary-total">${nfEuro.format(cur.total)} €</span>
       <span class="log-summary-sub">${nfL.format(cur.liters)} L · ${cur.n} repostaje${cur.n > 1 ? 's' : ''} · media ${nfEuro.format(avg)} €/${P.unit}</span>
     </div>
+    ${consumo}
     <div class="log-section-title">Por ${P.unit}</div>
     ${bars}
     <div class="log-section-title">Historial</div>
@@ -730,6 +765,8 @@ sheetBody.addEventListener('submit', (e) => {
   const s = state.stations.find((x) => x.id === wrap.dataset.station);
   const liters = parseFloat(form.querySelector('.log-liters').value);
   const price = parseFloat(form.querySelector('.log-price').value);
+  const odoRaw = parseFloat(form.querySelector('.log-odo').value);
+  const odo = Number.isFinite(odoRaw) && odoRaw > 0 ? odoRaw : null;
   const entry = {
     id: `${Date.now()}-${Math.round(liters * 100)}`,
     ts: Date.now(),
@@ -740,6 +777,7 @@ sheetBody.addEventListener('submit', (e) => {
     liters,
     price,
     total: t,
+    odo,
   };
   saveLog([entry, ...loadLog()]);
   closeSheet();

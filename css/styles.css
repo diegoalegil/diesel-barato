@@ -1105,6 +1105,10 @@ button {
 
 .log-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+.log-odo-field { margin-top: 9px; }
+.log-odo-field > span { display: flex; align-items: baseline; gap: 6px; }
+.log-opt { font-size: 11px; color: var(--ink-3); font-weight: 400; }
+
 .log-total {
   display: flex;
   justify-content: space-between;
@@ -1233,6 +1237,47 @@ button {
 }
 
 .log-summary-sub { font-size: 13.5px; color: var(--ink-2); margin-top: 2px; }
+
+/* consumo real (3 celdas tipo stats) */
+.log-consumo {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  background: var(--card);
+  border: 0.5px solid var(--hair);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.log-consumo-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 8px 14px 15px;
+}
+
+.log-consumo-cell + .log-consumo-cell { border-left: 0.5px solid var(--hair); }
+
+.log-consumo-val {
+  font-family: var(--serif);
+  font-size: 21px;
+  font-weight: 620;
+  font-variation-settings: 'opsz' 40;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.log-consumo-unit { font-size: 11.5px; color: var(--ink-2); }
+
+.log-hint {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  background: var(--accent-soft);
+  border-radius: var(--r-md);
+  padding: 13px 15px;
+  text-wrap: balance;
+}
 
 .log-section-title {
   font-size: 12.5px;
