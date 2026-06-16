@@ -420,7 +420,7 @@ function renderList(animate = true) {
   listEl.innerHTML = list.map((s, i) => cardHTML(s, i, qClassOf, cheapestId, cheapestTag, animate)).join('');
 
   heroCount.textContent = state.fuel === 'repsol'
-    ? `${list.length} estaciones Repsol · con tu −${state.dto} ct`
+    ? `${list.length} estaciones Repsol · con Waylet −${state.dto} ct`
     : `Tenerife · ${list.length} gasolineras con ${FUELS.find((f) => f.key === state.fuel).label}`;
 }
 
@@ -485,8 +485,8 @@ function sheetHTML(s) {
       </div>` : ''}
       ${state.fuel === 'repsol' && isRepsol(s) && s.prices.diesel != null ? `<div class="sheet-row">
         <svg class="ilc" aria-hidden="true"><use href="#il-coin"/></svg>
-        <span class="sheet-row-text">Con tu descuento de −${state.dto} ct
-          <span class="sheet-row-sub">Pagarías ${fmtPrice(priceOf(s))} €/L de diésel</span>
+        <span class="sheet-row-text">Con tu descuento Waylet de −${state.dto} ct
+          <span class="sheet-row-sub">Te sale a ${fmtPrice(priceOf(s))} €/L de diésel (saldo Waylet)</span>
         </span>
       </div>` : ''}
     </div>
