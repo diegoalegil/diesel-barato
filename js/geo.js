@@ -1,7 +1,5 @@
 // Geolocalización, distancias y enlaces de navegación.
 
-const GEO_FLAG = 'db.geo.granted';
-
 export function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const toRad = (d) => (d * Math.PI) / 180;
@@ -23,21 +21,25 @@ export function requestPosition() {
   return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) return reject(new Error('sin geolocalización'));
     navigator.geolocation.getCurrentPosition(
-      (p) => {
-        try { localStorage.setItem(GEO_FLAG, '1'); } catch {}
-        resolve({ lat: p.coords.latitude, lng: p.coords.longitude });
-      },
-      (err) => {
-        try { localStorage.removeItem(GEO_FLAG); } catch {}
-        reject(err);
-      },
+      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      reject,
       { enableHighAccuracy: false, timeout: 9000, maximumAge: 300000 }
     );
   });
 }
 
-export function wasGranted() {
-  try { return localStorage.getItem(GEO_FLAG) === '1'; } catch { return false; }
+// Estado REAL del permiso del navegador (nunca muestra diálogo). Devuelve
+// 'granted' | 'prompt' | 'denied' | 'unsupported'. Sustituye a la antigua
+// bandera en localStorage, que sobrevivía aunque iOS revocara el permiso y
+// hacía que la app re-pidiera ubicación sola en cada visita.
+export async function permissionState() {
+  try {
+    if (!navigator.permissions?.query) return 'unsupported';
+    const s = await navigator.permissions.query({ name: 'geolocation' });
+    return s.state;
+  } catch {
+    return 'unsupported';
+  }
 }
 
 export function appleMapsUrl(lat, lng, name) {

@@ -1,5 +1,5 @@
 import { loadStations, FUELS } from './api.js';
-import { haversineKm, formatKm, requestPosition, wasGranted, appleMapsUrl, googleMapsUrl } from './geo.js';
+import { haversineKm, formatKm, requestPosition, permissionState, appleMapsUrl, googleMapsUrl } from './geo.js';
 import { openSheet, closeSheet } from './sheet.js';
 import { showMap, updatePins } from './map.js';
 
@@ -704,7 +704,13 @@ async function init() {
 
   const dataReady = refresh({ silent: true });
 
-  if (wasGranted()) {
+  // Auto-localización al entrar SOLO si es 100% segura y silenciosa:
+  // - permissions.query confirma permiso ya concedido (esta consulta nunca abre diálogo),
+  // - y no estamos en modo PWA standalone (en iOS el permiso no persiste entre sesiones y
+  //   en standalone ni 'granted' es fiable: ahí podría re-abrir el diálogo).
+  // En cualquier otro caso no se pide nada: el diálogo solo aparece al tocar "Más cercanas".
+  const autoLocate = () => {
+    if (state.pos) return; // ya localizado (p. ej. el usuario tocó "Más cercanas" antes)
     requestPosition()
       .then(async (p) => {
         state.pos = p;
@@ -712,7 +718,11 @@ async function init() {
         computeDistances();
         renderAll(false);
       })
-      .catch(() => {});
+      .catch(() => {}); // si fallara, se queda el orden por precio, sin ruido
+  };
+
+  if (!isStandalone) {
+    permissionState().then((st) => { if (st === 'granted') autoLocate(); });
   }
 }
 
