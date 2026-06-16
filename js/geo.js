@@ -42,11 +42,6 @@ export async function permissionState() {
   }
 }
 
-export function appleMapsUrl(lat, lng, name) {
-  const q = encodeURIComponent(name || 'Gasolinera');
-  return `https://maps.apple.com/?daddr=${lat},${lng}&q=${q}&dirflg=d`;
-}
-
 export function googleMapsUrl(lat, lng) {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
 }

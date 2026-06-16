@@ -1,5 +1,5 @@
 import { loadStations, FUELS } from './api.js';
-import { haversineKm, formatKm, requestPosition, permissionState, appleMapsUrl, googleMapsUrl } from './geo.js';
+import { haversineKm, formatKm, requestPosition, permissionState, googleMapsUrl } from './geo.js';
 import { openSheet, closeSheet } from './sheet.js';
 import { showMap, updatePins } from './map.js';
 
@@ -492,11 +492,8 @@ function sheetHTML(s) {
     </div>
     <div class="price-grid">${cells}</div>
     <div class="sheet-actions">
-      <a class="action-btn primary" href="${appleMapsUrl(s.lat, s.lng, name)}" target="_blank" rel="noopener">
-        <svg class="ic"><use href="#i-nav"/></svg> Apple Maps
-      </a>
-      <a class="action-btn secondary" href="${googleMapsUrl(s.lat, s.lng)}" target="_blank" rel="noopener">
-        <svg class="ic"><use href="#i-map"/></svg> Google Maps
+      <a class="action-btn primary" href="${googleMapsUrl(s.lat, s.lng)}" target="_blank" rel="noopener">
+        <svg class="ic"><use href="#i-nav"/></svg> Cómo llegar
       </a>
     </div>`;
 }

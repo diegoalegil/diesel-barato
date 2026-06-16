@@ -924,7 +924,7 @@ button {
 
 .sheet-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 9px;
   padding-top: 14px;
 }
