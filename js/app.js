@@ -236,16 +236,31 @@ function stationsAvailable() {
   return state.stations.filter((s) => priceOf(s) != null);
 }
 
-function makeQClass() {
-  const prices = stationsAvailable().map(priceOf).sort((a, b) => a - b);
+// Escala de color relativa al conjunto que se MUESTRA: en modo Repsol son solo las
+// Repsol (¿cuál es barata para ser Repsol?), no toda la isla — así el verde/rojo es
+// coherente con la pestaña. La comparación con el resto vive en stats y veredicto.
+function makeQClass(pool) {
+  const prices = (pool || stationsAvailable()).map(priceOf).filter((p) => p != null).sort((a, b) => a - b);
   if (!prices.length) return () => 'q1';
   const q = (p) => prices[Math.min(prices.length - 1, Math.floor(p * prices.length))];
   const qs = [q(0.25), q(0.5), q(0.75)];
   return (price) => (price <= qs[0] ? 'q0' : price <= qs[1] ? 'q1' : price <= qs[2] ? 'q2' : 'q3');
 }
 
+// Estación más barata de un conjunto, con desempate estable por id: así la etiqueta de
+// la lista, el veredicto y la ficha siempre nombran la MISMA cuando hay precios iguales.
+function cheapestStation(pool) {
+  return pool.reduce((m, s) => {
+    const d = priceOf(s) - priceOf(m);
+    return d < 0 || (d === 0 && s.id < m.id) ? s : m;
+  }, pool[0]);
+}
+
 function sortedStations() {
-  const list = stationsAvailable();
+  // en modo Repsol la lista muestra SOLO estaciones Repsol (con su descuento);
+  // la comparación con el resto vive en las stats y el veredicto
+  let list = stationsAvailable();
+  if (state.fuel === 'repsol') list = list.filter(isRepsol);
   if (state.sort === 'near' && state.pos) {
     return list.sort((a, b) => (a._km ?? 1e9) - (b._km ?? 1e9) || priceOf(a) - priceOf(b));
   }
@@ -341,8 +356,8 @@ function renderVerdict() {
     verdictEl.hidden = true;
     return;
   }
-  const bestR = reps.reduce((m, s) => (priceOf(s) < priceOf(m) ? s : m));
-  const bestO = others.reduce((m, s) => (priceOf(s) < priceOf(m) ? s : m));
+  const bestR = cheapestStation(reps);
+  const bestO = cheapestStation(others);
   const pr = priceOf(bestR);
   const po = priceOf(bestO);
   const win = pr <= po;
@@ -350,20 +365,21 @@ function renderVerdict() {
   verdictEl.classList.add(win ? 'win' : 'lose');
   verdictEl.innerHTML = win
     ? `<strong>Te compensa la Repsol</strong> de ${shortTown(bestR.town)}: ${fmtPrice(pr)} € frente a ${fmtPrice(po)} € de ${brandCase(bestO.brand)}.`
-    : `<strong>Sale mejor ${brandCase(bestO.brand)}</strong> (${shortTown(bestO.town)}): ${fmtPrice(po)} € frente a ${fmtPrice(pr)} € de la mejor Repsol.`;
+    : `<strong>Sale mejor ${brandCase(bestO.brand)}</strong> (${shortTown(bestO.town)}): ${fmtPrice(po)} € frente a ${fmtPrice(pr)} € de la mejor Repsol. <button class="verdict-link" data-id="${bestO.id}">Ver ${brandCase(bestO.brand)} →</button>`;
   verdictEl.hidden = false;
 }
 
-const BEST_TAG =
-  '<span class="best-tag"><svg class="tag-ic" aria-hidden="true"><use href="#il-drop"/></svg>Mejor precio de la isla</span>';
+function bestTagHTML(label) {
+  return `<span class="best-tag"><svg class="tag-ic" aria-hidden="true"><use href="#il-drop"/></svg>${label}</span>`;
+}
 
-function cardHTML(s, rank, qClassOf, cheapestId, animate) {
+function cardHTML(s, rank, qClassOf, cheapestId, cheapestTag, animate) {
   const price = priceOf(s);
   const base = s.prices[fuelKey()];
   const st = scheduleStatus(s.schedule);
   const open = openLabel(st);
   const name = brandCase(s.brand);
-  const tag = s.id === cheapestId ? BEST_TAG : '';
+  const tag = s.id === cheapestId ? cheapestTag : '';
   const anim = animate ? ` enter" style="--d:${Math.min(rank, 13)}` : '';
   const meta =
     `<span class="meta-town">${shortTown(s.town)}</span>` +
@@ -390,22 +406,21 @@ function cardHTML(s, rank, qClassOf, cheapestId, animate) {
 
 function renderList(animate = true) {
   const list = sortedStations();
-  const qClassOf = makeQClass();
-  const cheapestId = list.length
-    ? list.reduce((m, s) => (priceOf(s) < priceOf(m) ? s : m), list[0]).id
-    : null;
+  const qClassOf = makeQClass(list); // colorear relativo a lo que se ve
+  const cheapestId = list.length ? cheapestStation(list).id : null;
+  const cheapestTag = bestTagHTML(state.fuel === 'repsol' ? 'Tu Repsol más barata' : 'Mejor precio de la isla');
 
   if (!list.length) {
     listEl.innerHTML = `<li class="empty-card">
       <svg class="empty-ic" aria-hidden="true"><use href="#il-pump"/></svg>
-      Ninguna gasolinera vende este combustible en Tenerife.
+      ${state.fuel === 'repsol' ? 'No hay estaciones Repsol con diésel ahora mismo.' : 'Ninguna gasolinera vende este combustible en Tenerife.'}
     </li>`;
     return;
   }
-  listEl.innerHTML = list.map((s, i) => cardHTML(s, i, qClassOf, cheapestId, animate)).join('');
+  listEl.innerHTML = list.map((s, i) => cardHTML(s, i, qClassOf, cheapestId, cheapestTag, animate)).join('');
 
   heroCount.textContent = state.fuel === 'repsol'
-    ? `Tenerife · ${list.length} gasolineras · Repsol con −${state.dto} ct`
+    ? `${list.length} estaciones Repsol · con tu −${state.dto} ct`
     : `Tenerife · ${list.length} gasolineras con ${FUELS.find((f) => f.key === state.fuel).label}`;
 }
 
@@ -429,7 +444,10 @@ function sheetHTML(s) {
   const st = scheduleStatus(s.schedule);
   const name = brandCase(s.brand);
   const myPrice = priceOf(s);
-  const cheapest = myPrice != null && stationsAvailable().every((o) => myPrice <= priceOf(o));
+  // en modo Repsol "la más barata" es entre las Repsol; en el resto, de toda la isla
+  const pool = state.fuel === 'repsol' ? stationsAvailable().filter(isRepsol) : stationsAvailable();
+  const cheapest = myPrice != null && pool.length > 0 && s.id === cheapestStation(pool).id;
+  const cheapestLabel = state.fuel === 'repsol' ? 'Tu Repsol más barata' : 'Mejor precio de la isla';
 
   const townLine = [shortTown(s.town), s._km != null ? `a ${formatKm(s._km)}` : null].filter(Boolean).join(' · ');
 
@@ -449,7 +467,7 @@ function sheetHTML(s) {
       <div>
         <div class="sheet-name">${name}</div>
         <div class="sheet-town">${townLine}</div>
-        ${cheapest ? BEST_TAG : ''}
+        ${cheapest ? bestTagHTML(cheapestLabel) : ''}
       </div>
     </div>
     <div class="sheet-rows">
@@ -488,6 +506,14 @@ function openStation(s) {
 }
 
 listEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-id]');
+  if (!btn) return;
+  const s = state.stations.find((x) => x.id === btn.dataset.id);
+  if (s) openStation(s);
+});
+
+// veredicto: tocar "Ver [rival] →" abre su ficha (la rival no está en la lista de Repsol)
+verdictEl.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-id]');
   if (!btn) return;
   const s = state.stations.find((x) => x.id === btn.dataset.id);
@@ -558,10 +584,12 @@ sortSeg.addEventListener('click', async (e) => {
 // ---------- mapa ----------
 
 function mapArgs() {
+  // mapa coherente con la lista: en modo Repsol, solo pines Repsol
+  const stations = state.fuel === 'repsol' ? state.stations.filter(isRepsol) : state.stations;
   return {
-    stations: state.stations,
+    stations,
     priceOf,
-    qClassOf: makeQClass(),
+    qClassOf: makeQClass(stations), // mismos colores que la lista (relativo a lo visible)
     fmtPrice,
     onSelect: openStation,
   };
