@@ -127,16 +127,23 @@ const BRAND_LOGOS = [
   ['la caleta', 'cepsa'],  // E.S. La Caleta (Garachico) opera bajo Cepsa
 ];
 
+// se resuelve para cada estaci\u00f3n en el comparador del orden (ruta caliente): memoizar
+const _brandKeyCache = new Map();
+
 function brandKey(brand) {
+  if (_brandKeyCache.has(brand)) return _brandKeyCache.get(brand);
   const b = String(brand).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
+  let result = null;
   for (const [key, file] of BRAND_LOGOS) {
     if (b === key || b.startsWith(key + ' ') || b.startsWith(key + '-') ||
         b.includes(' ' + key + ' ') || b.endsWith(' ' + key)) {
-      return file;
+      result = file;
+      break;
     }
   }
-  return null;
+  _brandKeyCache.set(brand, result);
+  return result;
 }
 
 function brandLogo(brand) {
@@ -522,7 +529,7 @@ dtoSeg.addEventListener('click', (e) => {
   if (!btn || +btn.dataset.dto === state.dto) return;
   state.dto = +btn.dataset.dto;
   setSeg(dtoSeg, 'dto', String(state.dto));
-  renderAll(true);
+  renderAll(false); // comparación instantánea: sin re-animar la lista entera
   if (state.mapOpen) updatePins(mapArgs());
 });
 
@@ -536,7 +543,7 @@ sortSeg.addEventListener('click', async (e) => {
       state.pos = await requestPosition();
       computeDistances();
       state.sort = 'near';
-      renderAll(true);
+      renderAll(false);
     } catch {
       setSeg(sortSeg, 'sort', state.sort);
       toast('No se pudo acceder a tu ubicación');
@@ -545,7 +552,7 @@ sortSeg.addEventListener('click', async (e) => {
   }
   state.sort = btn.dataset.sort;
   setSeg(sortSeg, 'sort', state.sort);
-  renderAll(true);
+  renderAll(false); // reordenar es instantáneo, no re-anima 200 tarjetas
 });
 
 // ---------- mapa ----------
@@ -579,7 +586,7 @@ mapClose.addEventListener('click', () => {
     mapView.hidden = true;
     mapView.classList.remove('closing');
     state.mapOpen = false;
-  }, 290);
+  }, 300); // = duración de map-out
 });
 
 // ---------- carga de datos ----------

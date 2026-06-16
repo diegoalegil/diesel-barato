@@ -6,16 +6,24 @@ const body = document.getElementById('sheetBody');
 
 let isOpen = false;
 let drag = null;
+let lastFocused = null;
+
+// cerrada al arrancar: que el teclado/lector no alcance sus enlaces fuera de pantalla
+sheet.inert = true;
+sheet.tabIndex = -1;
 
 export function openSheet(html) {
   body.innerHTML = html;
   body.scrollTop = 0;
+  lastFocused = document.activeElement;
   backdrop.hidden = false;
+  sheet.inert = false;
   // forzar reflow para que la transición arranque desde el estado oculto
   void sheet.offsetHeight;
   backdrop.classList.add('show');
   sheet.classList.add('open');
   isOpen = true;
+  sheet.focus({ preventScroll: true });
 }
 
 export function closeSheet() {
@@ -23,8 +31,12 @@ export function closeSheet() {
   isOpen = false;
   sheet.classList.remove('open');
   sheet.style.transform = '';
+  sheet.inert = true;
   backdrop.classList.remove('show');
   setTimeout(() => { if (!isOpen) backdrop.hidden = true; }, 400);
+  // devolver el foco a la tarjeta que abrió la hoja
+  if (lastFocused && lastFocused.focus) lastFocused.focus({ preventScroll: true });
+  lastFocused = null;
 }
 
 backdrop.addEventListener('click', closeSheet);

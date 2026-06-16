@@ -79,7 +79,3 @@ export function updatePins({ stations, priceOf, qClassOf, fmtPrice, onSelect }) 
   }
   pinLayer.addTo(map);
 }
-
-export function flyTo(pos) {
-  if (map && pos) map.flyTo([pos.lat, pos.lng], 13, { duration: 0.8 });
-}

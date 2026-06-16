@@ -72,6 +72,12 @@ for (const vp of CONFIG.viewports) {
       await autoScroll(page);
       await page.waitForTimeout(800); // settle: que terminen de decodificar las imágenes
     }
+    // fullPage + content-visibility:auto deja huecos en blanco al coser la captura;
+    // forzar render completo para que la auditoría refleje el layout real
+    if (CONFIG.fullPage) {
+      await page.addStyleTag({ content: '*{content-visibility:visible!important}' });
+      await page.waitForTimeout(200);
+    }
     await page.screenshot({
       path: `shots/${route.name}-${vp.name}.png`,
       fullPage: CONFIG.fullPage,
