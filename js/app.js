@@ -59,6 +59,12 @@ const nfPrice = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 3, maxim
 const nfEuro = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const fmtPrice = (n) => nfPrice.format(n);
+// precio con € pegado por espacio duro ( ): en prosa, número y símbolo nunca se
+// parten en dos líneas ("1,405\n€"). En las tarjetas el € va en su propio span, no hace falta.
+const eur = (n) => `${nfPrice.format(n)} €`;
+
+// espacio duro (U+00A0) para pegar cifra y unidad en prosa, p. ej. "6,2 L/100 km"
+const NB = String.fromCharCode(160);
 
 const SMALL_WORDS = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'en', 'a', 'al']);
 
@@ -188,7 +194,10 @@ function formatUpdated(ts) {
   const d = new Date(ts);
   const now = new Date();
   const hm = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-  if (d.toDateString() === now.toDateString()) {
+  // El sello del Ministerio va en hora peninsular (+1 h sobre Canarias): pasada la
+  // medianoche peninsular, el dato fresco llega fechado "mañana". Un sello en el futuro
+  // solo puede ser ese desfase horario, nunca datos del futuro → trátalo como de hoy.
+  if (d.toDateString() === now.toDateString() || d > now) {
     return { long: `actualizado hoy a las ${hm}`, short: `hoy ${hm}` };
   }
   const yest = new Date(now);
@@ -391,8 +400,8 @@ function renderVerdict() {
   verdictEl.classList.remove('win', 'lose');
   verdictEl.classList.add(win ? 'win' : 'lose');
   verdictEl.innerHTML = win
-    ? `<strong>Con ${cfg.app} te sale mejor</strong>: ${fmtPrice(pr)} € en ${shortTown(bestM.town)} frente a ${fmtPrice(po)} € de ${brandCase(bestO.brand)}.`
-    : `<strong>Sale mejor ${brandCase(bestO.brand)}</strong> (${shortTown(bestO.town)}): ${fmtPrice(po)} € frente a ${fmtPrice(pr)} € con ${cfg.app}. <button class="verdict-link" data-id="${bestO.id}">Ver ${brandCase(bestO.brand)} →</button>`;
+    ? `<strong>Con ${cfg.app} te sale mejor</strong>: ${eur(pr)} en ${shortTown(bestM.town)} frente a ${eur(po)} de ${brandCase(bestO.brand)}.`
+    : `<strong>Sale mejor ${brandCase(bestO.brand)}</strong> (${shortTown(bestO.town)}): ${eur(po)} frente a ${eur(pr)} con ${cfg.app}. <button class="verdict-link" data-id="${bestO.id}">Ver ${brandCase(bestO.brand)} →</button>`;
   verdictEl.hidden = false;
 }
 
@@ -410,11 +419,11 @@ function renderPremiumTip() {
   const shells = prem.filter((s) => brandKey(s.brand) === 'shell');
   const shell = shells.length ? cheapestStation(shells) : null;
   const shellPart = shell
-    ? ` <button class="verdict-link" data-id="${shell.id}">Shell V-Power: ${fmtPrice(priceOf(shell))} € en ${shortTown(shell.town)} →</button>`
+    ? ` <button class="verdict-link" data-id="${shell.id}">Shell V-Power: ${eur(priceOf(shell))} en ${shortTown(shell.town)} →</button>`
     : '';
   premiumTip.innerHTML =
     `<strong>Diésel premium</strong>: lleva aditivos que limpian el motor, va bien un depósito de vez en cuando. ` +
-    `El más barato: ${brandCase(cheapest.brand)} a ${fmtPrice(priceOf(cheapest))} €.${shellPart}`;
+    `El más barato: ${brandCase(cheapest.brand)} a ${eur(priceOf(cheapest))}.${shellPart}`;
   premiumTip.hidden = false;
 }
 
@@ -466,7 +475,7 @@ function renderList(animate = true) {
   listEl.innerHTML = list.map((s, i) => cardHTML(s, i, qClassOf, cheapestId, cheapestTag, animate)).join('');
 
   heroCount.textContent = cfg
-    ? `${list.length} estaciones ${cfg.net} · con ${cfg.app} −${state.dto} ct`
+    ? `${list.length} estaciones ${cfg.net} · con ${cfg.app} −${state.dto} ct`
     : `Tenerife · ${list.length} gasolineras con ${FUELS.find((f) => f.key === state.fuel).label}`;
 }
 
@@ -533,8 +542,8 @@ function sheetHTML(s) {
       </div>` : ''}
       ${cfg && inMode(s) && priceOf(s) != null ? `<div class="sheet-row">
         <svg class="ilc" aria-hidden="true"><use href="#il-coin"/></svg>
-        <span class="sheet-row-text">Con tu descuento ${cfg.app} de −${state.dto} ct
-          <span class="sheet-row-sub">Te sale a ${fmtPrice(priceOf(s))} €/L (${cfg.note})</span>
+        <span class="sheet-row-text">Con tu descuento ${cfg.app} de −${state.dto} ct
+          <span class="sheet-row-sub">Te sale a ${fmtPrice(priceOf(s))} €/L (${cfg.note})</span>
         </span>
       </div>` : ''}
     </div>
@@ -675,14 +684,14 @@ function renderLog() {
         <span class="log-month-total">${nfEuro.format(g.total)} €</span>
       </div>
       <div class="log-bar"><span style="width:${Math.max(4, (g.total / maxTotal) * 100)}%"></span></div>
-      <div class="log-month-sub">${nfL.format(g.liters)} L · ${g.n} repostaje${g.n > 1 ? 's' : ''} · ${nfPrice.format(g.total / g.liters)} €/L medio</div>
+      <div class="log-month-sub">${nfL.format(g.liters)} L · ${g.n} repostaje${g.n > 1 ? 's' : ''} · ${nfPrice.format(g.total / g.liters)} €/L medio</div>
     </div>`).join('');
 
   const entryRows = log.map((e) => `
     <li class="log-entry">
       <div class="log-entry-main">
         <span class="log-entry-brand">${e.brand}</span>
-        <span class="log-entry-meta">${new Date(e.ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${nfL.format(e.liters)} L · ${nfPrice.format(e.price)} €/L${e._l100 ? ` · ${nfL.format(e._l100)} L/100km` : ''}</span>
+        <span class="log-entry-meta">${new Date(e.ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${nfL.format(e.liters)}${NB}L · ${nfPrice.format(e.price)}${NB}€/L${e._l100 ? ` · ${nfL.format(e._l100)}${NB}L/100${NB}km` : ''}</span>
       </div>
       <span class="log-entry-total">${nfEuro.format(e.total)} €</span>
       <button class="log-del" data-del="${e.id}" aria-label="Borrar repostaje">
@@ -704,7 +713,7 @@ function renderLog() {
     <div class="log-summary">
       <span class="log-summary-label">${P.cur}</span>
       <span class="log-summary-total">${nfEuro.format(cur.total)} €</span>
-      <span class="log-summary-sub">${nfL.format(cur.liters)} L · ${cur.n} repostaje${cur.n > 1 ? 's' : ''} · media ${nfEuro.format(avg)} €/${P.unit}</span>
+      <span class="log-summary-sub">${nfL.format(cur.liters)}${NB}L · ${cur.n} repostaje${cur.n > 1 ? 's' : ''} · media ${nfEuro.format(avg)}${NB}€/${P.unit}</span>
     </div>
     ${consumo}
     <div class="log-section-title">Por ${P.unit}</div>
