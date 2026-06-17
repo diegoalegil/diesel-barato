@@ -29,6 +29,7 @@ const heroCount = $('heroCount');
 const updatedInline = $('updatedInline');
 const updatedChip = $('updatedChip');
 const updatedChipText = $('updatedChipText');
+const topbarPrice = $('topbarPrice'); // F6: la cifra más barata migra al topbar
 const fuelSeg = $('fuelSeg');
 const sortSeg = $('sortSeg');
 const mapBtn = $('mapBtn');
@@ -302,39 +303,54 @@ function computeDistances() {
 
 // ---------- render ----------
 
+// F3 · contador rodillo mecánico (drop-in, misma firma animateValue(el, to, format)).
+// Construye una columna por dígito; solo ruedan los que cambian; €, coma y signo fijos.
+// El render reemplaza el contenido, así que es seguro ante re-renders rápidos (no hace falta _anim).
 function animateValue(el, to, format) {
   const from = parseFloat(el.dataset.v ?? 'NaN');
   el.dataset.v = String(to);
-  if (el._anim) { el._anim(); el._anim = null; }
-  if (!Number.isFinite(from) || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    el.textContent = format(to);
-    return;
+  const newStr = format(to);
+  if (!Number.isFinite(from) || reduced()) { renderRoller(el, newStr, null); return; }
+  renderRoller(el, newStr, format(from));
+}
+function renderRoller(el, newStr, oldStr) {
+  el.textContent = '';
+  const wrap = document.createElement('span');
+  wrap.className = 'digit-roll';
+  const cols = [];
+  const offset = oldStr ? newStr.length - oldStr.length : 0;
+  for (let i = 0; i < newStr.length; i++) {
+    const ch = newStr[i];
+    if (ch >= '0' && ch <= '9') {
+      const col = document.createElement('span'); col.className = 'col';
+      const strip = document.createElement('span'); strip.className = 'strip';
+      for (let d = 0; d <= 9; d++) { const sp = document.createElement('span'); sp.textContent = d; strip.appendChild(sp); }
+      col.appendChild(strip); wrap.appendChild(col);
+      cols.push({ strip, to: +ch, idx: i });
+    } else {
+      const sym = document.createElement('span'); sym.className = 'sym';
+      sym.textContent = ch === ' ' ? ' ' : ch;
+      wrap.appendChild(sym);
+    }
   }
-  const t0 = performance.now();
-  const dur = 450;
-  let raf = 0;
-  const finish = () => {
-    clearTimeout(guard);
-    cancelAnimationFrame(raf);
-    el._anim = null;
-    el.textContent = format(to);
-  };
-  // si rAF queda suspendido (pestaña oculta), el valor final se fija igualmente
-  const guard = setTimeout(finish, dur + 100);
-  el._anim = () => { clearTimeout(guard); cancelAnimationFrame(raf); };
-  const tick = (t) => {
-    const p = Math.min(1, (t - t0) / dur);
-    if (p >= 1) { finish(); return; }
-    el.textContent = format(from + (to - from) * (1 - (1 - p) ** 3));
-    raf = requestAnimationFrame(tick);
-  };
-  raf = requestAnimationFrame(tick);
+  el.appendChild(wrap);
+  const setY = (d) => `translateY(${-d}em)`;
+  cols.forEach((c, ci) => {
+    if (!oldStr || reduced()) { c.strip.style.transform = setY(c.to); return; }
+    const oldCh = oldStr[c.idx - offset];
+    const oldD = (oldCh >= '0' && oldCh <= '9') ? +oldCh : c.to;
+    if (oldD === c.to) { c.strip.style.transform = setY(c.to); return; }
+    c.strip.style.transform = setY(oldD);
+    c.strip.animate([{ transform: setY(oldD) }, { transform: setY(c.to) }],
+      { duration: 540, delay: ci * 45, easing: 'cubic-bezier(0.34,1.4,0.64,1)', fill: 'forwards' });
+  });
 }
 
 function renderStats() {
   const list = stationsAvailable();
   if (!list.length) {
     statMin.textContent = statAvg.textContent = statSave.textContent = '—';
+    if (topbarPrice) topbarPrice.textContent = '—';
     return;
   }
 
@@ -352,6 +368,7 @@ function renderStats() {
     const bestM = Math.min(...mine.map(priceOf));
     const bestO = Math.min(...others.map(priceOf));
     const diff = (bestO - bestM) * 50; // positivo = tu app te ahorra dinero
+    if (topbarPrice) topbarPrice.textContent = eur(bestM);
     animateValue(statMin, bestM, (v) => `${nfPrice.format(v)} €`);
     animateValue(statAvg, bestO, (v) => `${nfPrice.format(v)} €`);
     animateValue(statSave, diff, (v) => `${v >= 0 ? '+' : '−'}${nfEuro.format(Math.abs(v))} €`);
@@ -364,6 +381,7 @@ function renderStats() {
   const prices = list.map(priceOf);
   const min = Math.min(...prices);
   const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+  if (topbarPrice) topbarPrice.textContent = eur(min);
   animateValue(statMin, min, (v) => `${nfPrice.format(v)} €`);
   animateValue(statAvg, avg, (v) => `${nfPrice.format(v)} €`);
 
@@ -1061,20 +1079,29 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ---------- barra compacta al hacer scroll ----------
+// F6 · la topbar cuaja como vidrio: --t (0→1) controla opacidad/blur/fondo y la migración
+// de la cifra; --chip-t muestra el chip de actualizar más tarde. F13 · --sy alimenta el parallax.
 
 const hero = document.querySelector('.hero');
-let topbarShown = false;
+topbar.classList.add('scroll-driven');
+let ticking = false;
 
-function updateTopbar() {
-  const show = window.scrollY > hero.offsetHeight - 24;
-  if (show !== topbarShown) {
-    topbarShown = show;
-    topbar.setAttribute('data-shown', String(show));
-  }
+function onScroll() {
+  if (ticking) return;
+  ticking = true;
+  requestAnimationFrame(() => {
+    const y = window.scrollY;
+    const t = Math.max(0, Math.min(1, (y - (hero.offsetHeight - 90)) / 80));
+    document.documentElement.style.setProperty('--t', t.toFixed(3));
+    document.documentElement.style.setProperty('--chip-t', t > 0.6 ? '1' : '0');
+    topbar.setAttribute('data-shown', String(t > 0.02));
+    hero.style.setProperty('--sy', String(y)); // F13 parallax
+    ticking = false;
+  });
 }
 
-window.addEventListener('scroll', updateTopbar, { passive: true });
-updateTopbar();
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
 
 // ---------- tirar para refrescar (solo PWA instalada) ----------
 
