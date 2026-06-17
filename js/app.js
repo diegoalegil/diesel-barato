@@ -1,7 +1,7 @@
 import { loadStations, FUELS } from './api.js';
 import { haversineKm, formatKm, requestPosition, permissionState, googleMapsUrl } from './geo.js';
 import { openSheet, closeSheet } from './sheet.js';
-import { showMap, updatePins } from './map.js';
+import { showMap, updatePins, flyToCheapestNear, mapProject, closeMini } from './map.js';
 
 // ---------- estado ----------
 
@@ -29,6 +29,7 @@ const heroCount = $('heroCount');
 const updatedInline = $('updatedInline');
 const updatedChip = $('updatedChip');
 const updatedChipText = $('updatedChipText');
+const topbarPrice = $('topbarPrice'); // F6: la cifra más barata migra al topbar
 const fuelSeg = $('fuelSeg');
 const sortSeg = $('sortSeg');
 const mapBtn = $('mapBtn');
@@ -66,6 +67,7 @@ const eur = (n) => `${nfPrice.format(n)} €`;
 
 // espacio duro (U+00A0) para pegar cifra y unidad en prosa, p. ej. "6,2 L/100 km"
 const NB = String.fromCharCode(160);
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const SMALL_WORDS = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'en', 'a', 'al']);
 
@@ -301,39 +303,54 @@ function computeDistances() {
 
 // ---------- render ----------
 
+// F3 · contador rodillo mecánico (drop-in, misma firma animateValue(el, to, format)).
+// Construye una columna por dígito; solo ruedan los que cambian; €, coma y signo fijos.
+// El render reemplaza el contenido, así que es seguro ante re-renders rápidos (no hace falta _anim).
 function animateValue(el, to, format) {
   const from = parseFloat(el.dataset.v ?? 'NaN');
   el.dataset.v = String(to);
-  if (el._anim) { el._anim(); el._anim = null; }
-  if (!Number.isFinite(from) || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    el.textContent = format(to);
-    return;
+  const newStr = format(to);
+  if (!Number.isFinite(from) || reduced()) { renderRoller(el, newStr, null); return; }
+  renderRoller(el, newStr, format(from));
+}
+function renderRoller(el, newStr, oldStr) {
+  el.textContent = '';
+  const wrap = document.createElement('span');
+  wrap.className = 'digit-roll';
+  const cols = [];
+  const offset = oldStr ? newStr.length - oldStr.length : 0;
+  for (let i = 0; i < newStr.length; i++) {
+    const ch = newStr[i];
+    if (ch >= '0' && ch <= '9') {
+      const col = document.createElement('span'); col.className = 'col';
+      const strip = document.createElement('span'); strip.className = 'strip';
+      for (let d = 0; d <= 9; d++) { const sp = document.createElement('span'); sp.textContent = d; strip.appendChild(sp); }
+      col.appendChild(strip); wrap.appendChild(col);
+      cols.push({ strip, to: +ch, idx: i });
+    } else {
+      const sym = document.createElement('span'); sym.className = 'sym';
+      sym.textContent = ch === ' ' ? ' ' : ch;
+      wrap.appendChild(sym);
+    }
   }
-  const t0 = performance.now();
-  const dur = 450;
-  let raf = 0;
-  const finish = () => {
-    clearTimeout(guard);
-    cancelAnimationFrame(raf);
-    el._anim = null;
-    el.textContent = format(to);
-  };
-  // si rAF queda suspendido (pestaña oculta), el valor final se fija igualmente
-  const guard = setTimeout(finish, dur + 100);
-  el._anim = () => { clearTimeout(guard); cancelAnimationFrame(raf); };
-  const tick = (t) => {
-    const p = Math.min(1, (t - t0) / dur);
-    if (p >= 1) { finish(); return; }
-    el.textContent = format(from + (to - from) * (1 - (1 - p) ** 3));
-    raf = requestAnimationFrame(tick);
-  };
-  raf = requestAnimationFrame(tick);
+  el.appendChild(wrap);
+  const setY = (d) => `translateY(${-d}em)`;
+  cols.forEach((c, ci) => {
+    if (!oldStr || reduced()) { c.strip.style.transform = setY(c.to); return; }
+    const oldCh = oldStr[c.idx - offset];
+    const oldD = (oldCh >= '0' && oldCh <= '9') ? +oldCh : c.to;
+    if (oldD === c.to) { c.strip.style.transform = setY(c.to); return; }
+    c.strip.style.transform = setY(oldD);
+    c.strip.animate([{ transform: setY(oldD) }, { transform: setY(c.to) }],
+      { duration: 540, delay: ci * 45, easing: 'cubic-bezier(0.34,1.4,0.64,1)', fill: 'forwards' });
+  });
 }
 
 function renderStats() {
   const list = stationsAvailable();
   if (!list.length) {
     statMin.textContent = statAvg.textContent = statSave.textContent = '—';
+    if (topbarPrice) topbarPrice.textContent = '—';
     return;
   }
 
@@ -351,6 +368,7 @@ function renderStats() {
     const bestM = Math.min(...mine.map(priceOf));
     const bestO = Math.min(...others.map(priceOf));
     const diff = (bestO - bestM) * 50; // positivo = tu app te ahorra dinero
+    if (topbarPrice) topbarPrice.textContent = eur(bestM);
     animateValue(statMin, bestM, (v) => `${nfPrice.format(v)} €`);
     animateValue(statAvg, bestO, (v) => `${nfPrice.format(v)} €`);
     animateValue(statSave, diff, (v) => `${v >= 0 ? '+' : '−'}${nfEuro.format(Math.abs(v))} €`);
@@ -363,6 +381,7 @@ function renderStats() {
   const prices = list.map(priceOf);
   const min = Math.min(...prices);
   const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+  if (topbarPrice) topbarPrice.textContent = eur(min);
   animateValue(statMin, min, (v) => `${nfPrice.format(v)} €`);
   animateValue(statAvg, avg, (v) => `${nfPrice.format(v)} €`);
 
@@ -440,8 +459,9 @@ function cardHTML(s, rank, qClassOf, cheapestId, cheapestTag, animate) {
     `<span class="meta-town">${shortTown(s.town)}</span>` +
     (s._km != null ? `<span class="meta-fix">· a ${formatKm(s._km)}</span>` : '') +
     (open ? `<span class="meta-fix">· ${open}</span>` : '');
-  return `<li class="card${anim}">
+  return `<li class="card${anim}" data-id="${s.id}">
     <button class="card-btn" data-id="${s.id}">
+      <span class="sweep" aria-hidden="true"></span>
       ${monoHTML(s, name)}
       <span class="card-main">
         <span class="card-name">${name}</span>
@@ -458,6 +478,8 @@ function cardHTML(s, rank, qClassOf, cheapestId, cheapestTag, animate) {
     </button>
   </li>`;
 }
+
+let champTimer = null;
 
 function renderList(animate = true) {
   const list = sortedStations();
@@ -478,6 +500,15 @@ function renderList(animate = true) {
   heroCount.textContent = cfg
     ? `${list.length} estaciones ${cfg.net} · con ${cfg.app} −${state.dto} ct`
     : `Tenerife · ${list.length} gasolineras con ${FUELS.find((f) => f.key === state.fuel).label}`;
+
+  // F1 · sello de la más barata: marca la tarjeta nº1 tras el último escalón de entrada.
+  // cheapestId ya respeta la lente de descuento (cheapestStation sobre la lista visible).
+  clearTimeout(champTimer);
+  const champ = cheapestId && listEl.querySelector(`.card[data-id="${cheapestId}"]`);
+  if (champ) {
+    if (!animate || reduced()) champ.classList.add('is-champion');
+    else champTimer = setTimeout(() => champ.classList.add('is-champion'), Math.min(list.length - 1, 13) * 36 + 120);
+  }
 }
 
 function renderUpdated() {
@@ -503,7 +534,8 @@ function sheetHTML(s) {
   const myPrice = priceOf(s);
   const cfg = state.mode ? DISCOUNT_MODES[state.mode] : null;
   // con una app activa "la más barata" es dentro de su red; si no, de toda la isla
-  const pool = cfg ? stationsAvailable().filter(inMode) : stationsAvailable();
+  const allAvail = stationsAvailable();
+  const pool = cfg ? allAvail.filter(inMode) : allAvail;
   const cheapest = myPrice != null && pool.length > 0 && s.id === cheapestStation(pool).id;
   const cheapestLabel = cfg ? `La más barata con ${cfg.app}` : 'Mejor precio de la isla';
 
@@ -519,7 +551,7 @@ function sheetHTML(s) {
     ? (st.always ? 'Abierto 24 horas' : st.open ? `Abierto ahora${st.until ? ` · cierra a las ${st.until}` : ''}` : 'Cerrado ahora')
     : '';
 
-  return `
+  return `<div class="sheet-stagger">
     <div class="sheet-head">
       ${monoHTML(s, name)}
       <div>
@@ -528,6 +560,7 @@ function sheetHTML(s) {
         ${cheapest ? bestTagHTML(cheapestLabel) : ''}
       </div>
     </div>
+    ${rangeMeter(myPrice, allAvail)}
     <div class="sheet-rows">
       <div class="sheet-row">
         <svg class="ilc" aria-hidden="true"><use href="#il-pin"/></svg>
@@ -553,7 +586,31 @@ function sheetHTML(s) {
       <a class="action-btn primary" href="${googleMapsUrl(s.lat, s.lng)}" target="_blank" rel="noopener">
         <svg class="ic"><use href="#i-nav"/></svg> Cómo llegar
       </a>
-    </div>`;
+    </div>
+  </div>`;
+}
+
+// F2 · termómetro de rango: dónde cae el precio (efectivo) de esta estación dentro del
+// rango de diésel de la isla. Percentil real sobre priceOf (respeta la lente de descuento).
+function rangeMeter(price, pool) {
+  const prices = pool.map(priceOf).filter((p) => p != null);
+  if (price == null || prices.length < 2) return '';
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const span = Math.max(0.001, max - min);
+  const pct = Math.max(0, Math.min(1, (price - min) / span));
+  const cheaperThan = Math.round(prices.filter((p) => p > price).length / prices.length * 100);
+  const phrase = cheaperThan >= 50
+    ? `Más barata que el <strong>${cheaperThan}%</strong> de Tenerife.`
+    : `Más cara que el <strong>${100 - cheaperThan}%</strong> de Tenerife.`;
+  return `<div class="meter">
+    <div class="meter-track">
+      <div class="meter-marker" style="left:${(pct * 100).toFixed(1)}%">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 5C17 14 12 21 12 27.5 12 34.8 17.3 40.5 24 40.5S36 34.8 36 27.5C36 21 31 14 24 5Z" fill="currentColor"/></svg>
+      </div>
+    </div>
+    <div class="meter-labels"><span class="lo">${eur(min)}</span><span class="hi">${eur(max)}</span></div>
+    <div class="meter-phrase">${phrase}</div>
+  </div>`;
 }
 
 function openStation(s) {
@@ -646,13 +703,14 @@ function renderLog() {
   // Cada tramo entre dos lecturas de km usa la gasolina repostada en ese tramo.
   const asc = [...all].sort((a, b) => a.ts - b.ts);
   let prevOdo = null, bucketL = 0, bucketC = 0, totDist = 0, totL = 0, totC = 0;
+  const l100s = []; // F9: histórico de tramos para el color de la aguja del gauge
   for (const e of asc) {
     e._l100 = null;
     if (e.odo != null) {
       if (prevOdo != null && e.odo > prevOdo) {
         const dist = e.odo - prevOdo, fuel = bucketL + e.liters, cost = bucketC + e.total;
         e._l100 = (fuel / dist) * 100;
-        totDist += dist; totL += fuel; totC += cost;
+        totDist += dist; totL += fuel; totC += cost; l100s.push(e._l100);
       }
       prevOdo = e.odo; bucketL = 0; bucketC = 0;
     } else {
@@ -660,6 +718,7 @@ function renderLog() {
     }
   }
   const hasConsumo = totDist > 0;
+  const l100 = hasConsumo ? totL / totDist * 100 : 0;
   const log = asc.slice().reverse(); // descendente para mostrar, mismos objetos con _l100
 
   const P = PERIODS[logPeriod];
@@ -700,12 +759,16 @@ function renderLog() {
       </button>
     </li>`).join('');
 
+  // F9 · gauge cálido (estilo cuadro de mandos) en vez de la celda L/100 km
   const consumo = hasConsumo
     ? `<div class="log-section-title">Consumo real</div>
        <div class="log-consumo">
-         <div class="log-consumo-cell"><span class="log-consumo-val">${nfL.format(totL / totDist * 100)}</span><span class="log-consumo-unit">L/100 km</span></div>
-         <div class="log-consumo-cell"><span class="log-consumo-val">${nfEuro.format(totC / totDist * 100)} €</span><span class="log-consumo-unit">por 100 km</span></div>
-         <div class="log-consumo-cell"><span class="log-consumo-val">${nf0.format(totDist)}</span><span class="log-consumo-unit">km medidos</span></div>
+         <div class="gauge-cell">${gaugeHTML(l100, l100s)}
+           <div class="gauge-side">
+             <div class="log-consumo-val">${nfEuro.format(totC / totDist * 100)} €</div><div class="log-consumo-unit">por 100 km</div>
+             <div class="log-consumo-val" style="margin-top:8px">${nf0.format(totDist)}</div><div class="log-consumo-unit">km medidos</div>
+           </div>
+         </div>
        </div>`
     : `<div class="log-hint">Apunta los km del cuentakilómetros al repostar y verás tu consumo real (L/100 km) y el coste por 100 km.</div>`;
 
@@ -713,14 +776,139 @@ function renderLog() {
     ${toggle}
     <div class="log-summary">
       <span class="log-summary-label">${P.cur}</span>
-      <span class="log-summary-total">${nfEuro.format(cur.total)} €</span>
+      <span class="log-summary-total" id="logTotal">—</span>
       <span class="log-summary-sub">${nfL.format(cur.liters)}${NB}L · ${cur.n} repostaje${cur.n > 1 ? 's' : ''} · media ${nfEuro.format(avg)}${NB}€/${P.unit}</span>
     </div>
     ${consumo}
+    ${sparkCardHTML(asc)}
     <div class="log-section-title">Por ${P.unit}</div>
     ${bars}
     <div class="log-section-title">Historial</div>
     <ul class="log-entries">${entryRows}</ul>`;
+
+  // F3 · el total del periodo cuenta con el rodillo
+  animateValue($('logTotal'), cur.total, (v) => `${nfEuro.format(v)} €`);
+  // F9 aguja + F11 dibujo del sparkline (tras pintar)
+  requestAnimationFrame(() => { animateGauge(); wireSpark(asc); });
+}
+
+// ▓ F9 · gauge de consumo (arco + aguja, color por cuartil del histórico propio) ▓
+function gaugeArcPath(cx, cy, r, a0, a1) {
+  const p = (a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  const [x0, y0] = p(a0), [x1, y1] = p(a1);
+  const large = (a1 - a0) > Math.PI ? 1 : 0;
+  return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+}
+const GAUGE_MAX = 9, GA0 = Math.PI * 0.78, GA1 = Math.PI * 2.22; // ~220°
+function gaugeHTML(value, history) {
+  const cx = 60, cy = 60, r = 46;
+  const full = gaugeArcPath(cx, cy, r, GA0, GA1);
+  const ticks = [4, 7].map((v) => {
+    const a = GA0 + (GA1 - GA0) * (v / GAUGE_MAX);
+    const x1 = cx + (r - 9) * Math.cos(a), y1 = cy + (r - 9) * Math.sin(a);
+    const x2 = cx + (r + 1) * Math.cos(a), y2 = cy + (r + 1) * Math.sin(a);
+    const lx = cx + (r - 16) * Math.cos(a), ly = cy + (r - 16) * Math.sin(a);
+    return `<line class="gauge-tick" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/><text class="gauge-ticklabel" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle">${v}</text>`;
+  }).join('');
+  const sorted = [...history].sort((a, b) => a - b);
+  const qcol = (() => {
+    if (sorted.length < 2) return 'var(--q1)';
+    const rank = sorted.filter((x) => x < value).length / sorted.length;
+    return rank <= 0.25 ? 'var(--q0)' : rank <= 0.5 ? 'var(--q1)' : rank <= 0.75 ? 'var(--q2)' : 'var(--q3)';
+  })();
+  return `<div class="gauge" data-value="${value}" data-needle="${qcol}">
+    <svg viewBox="0 0 120 100" aria-hidden="true">
+      <defs><linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="var(--q0)"/><stop offset="0.5" stop-color="var(--q1)"/><stop offset="1" stop-color="var(--q3)"/>
+      </linearGradient></defs>
+      <path class="gauge-arc-bg" d="${full}"/>
+      <path class="gauge-arc" d="${full}"/>
+      ${ticks}
+      <line class="gauge-needle" x1="60" y1="60" x2="${(60 + (r - 6) * Math.cos(GA0)).toFixed(1)}" y2="${(60 + (r - 6) * Math.sin(GA0)).toFixed(1)}" stroke="${qcol}"/>
+      <circle class="gauge-pivot" cx="60" cy="60" r="4.5"/>
+    </svg>
+    <div class="gauge-center"><span class="gauge-num">${nfL.format(value)}</span><span class="gauge-unit">L/100 km</span></div>
+  </div>`;
+}
+function animateGauge() {
+  const g = logBody.querySelector('.gauge');
+  if (!g) return;
+  const value = parseFloat(g.dataset.value);
+  const arc = g.querySelector('.gauge-arc');
+  const needle = g.querySelector('.gauge-needle');
+  const len = arc.getTotalLength();
+  const frac = Math.max(0, Math.min(1, value / GAUGE_MAX));
+  const angleAt = (f) => GA0 + (GA1 - GA0) * f;
+  const r = 40;
+  const setNeedle = (f) => { const a = angleAt(f); needle.setAttribute('x2', (60 + r * Math.cos(a)).toFixed(1)); needle.setAttribute('y2', (60 + r * Math.sin(a)).toFixed(1)); };
+  if (reduced()) { arc.style.strokeDasharray = `${len * frac} ${len}`; setNeedle(frac); return; }
+  arc.style.strokeDasharray = `${len} ${len}`;
+  arc.style.strokeDashoffset = String(len);
+  arc.animate([{ strokeDashoffset: len }, { strokeDashoffset: len - len * frac }], { duration: 680, easing: 'cubic-bezier(0.32,0.72,0,1)', fill: 'forwards' });
+  const t0 = performance.now(), dur = 680;
+  const ease = (p) => 1 - (1 - p) ** 3;
+  (function tick(t) {
+    const p = Math.min(1, (t - t0) / dur);
+    const overshoot = p > 0.85 ? 1 + Math.sin((p - 0.85) / 0.15 * Math.PI) * 0.04 : 1;
+    setNeedle(frac * ease(p) * overshoot);
+    if (p < 1) requestAnimationFrame(tick);
+  })(t0);
+}
+
+// ▓ F11 · sparkline de €/L pagado con scrubbing y frase honesta ▓
+function sparkCardHTML(asc) {
+  if (asc.length < 2) return `<div class="spark-card"><div class="log-section-title">Lo que pagas por litro</div><p class="spark-phrase">Registra algún repostaje más y verás aquí cómo evoluciona tu €/L.</p></div>`;
+  return `<div class="spark-card"><div class="log-section-title">Lo que pagas por litro</div><div class="spark-wrap" id="sparkWrap"></div></div>`;
+}
+function wireSpark(asc) {
+  const wrap = $('sparkWrap');
+  if (!wrap || asc.length < 2) return;
+  const W = wrap.clientWidth || 300, H = 96, pad = 14;
+  const prices = asc.map((e) => e.price);
+  const min = Math.min(...prices), max = Math.max(...prices), span = Math.max(0.001, max - min);
+  const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+  const X = (i) => pad + (W - pad * 2 - 28) * (i / (asc.length - 1));
+  const Y = (p) => pad + (H - pad * 2) * (1 - (p - min) / span);
+  const sortedP = [...prices].sort((a, b) => a - b);
+  const qOf = (p) => { const rank = sortedP.filter((x) => x < p).length / sortedP.length; return rank <= 0.25 ? 'q0' : rank <= 0.5 ? 'q1' : rank <= 0.75 ? 'q2' : 'q3'; };
+  const pts = asc.map((e, i) => [X(i), Y(e.price)]);
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+  const avgY = Y(avg).toFixed(1);
+  const last = pts[pts.length - 1];
+  const dots = asc.map((e, i) => `<circle class="spark-dot ${qOf(e.price)}" cx="${pts[i][0].toFixed(1)}" cy="${pts[i][1].toFixed(1)}" r="${i === asc.length - 1 ? 4 : 2.6}" style="animation-delay:${i * 60 + 300}ms"/>`).join('');
+  wrap.innerHTML = `<svg class="spark-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <line class="spark-avg" x1="${pad}" y1="${avgY}" x2="${W - 28}" y2="${avgY}"/>
+    <path class="spark-line" d="${d}"/>${dots}
+    <text class="spark-last-label" x="${(last[0] + 7).toFixed(1)}" y="${(last[1] + 4).toFixed(1)}">${nfPrice.format(asc[asc.length - 1].price)} €</text>
+  </svg>
+  <div class="spark-tip" id="sparkTip"></div>`;
+  const line = wrap.querySelector('.spark-line');
+  if (line) { const L = line.getTotalLength(); line.style.setProperty('--len', L); }
+  if (asc.length >= 3) {
+    const diff = (asc[asc.length - 1].price - asc[0].price) * 100;
+    const phrase = document.createElement('div'); phrase.className = 'spark-phrase';
+    phrase.innerHTML = diff <= 0
+      ? `Tu €/L ha <strong>bajado ${nfL.format(Math.abs(diff))} ct</strong> desde tu primer repostaje.`
+      : `Tu €/L ha <strong>subido ${nfL.format(diff)} ct</strong> desde tu primer repostaje.`;
+    wrap.parentElement.appendChild(phrase);
+  }
+  const tip = $('sparkTip');
+  const svg = wrap.querySelector('.spark-svg');
+  function move(clientX) {
+    const rect = svg.getBoundingClientRect();
+    const x = (clientX - rect.left) / rect.width * W;
+    let best = 0, bd = 1e9;
+    pts.forEach((p, i) => { const dd = Math.abs(p[0] - x); if (dd < bd) { bd = dd; best = i; } });
+    const e = asc[best];
+    tip.innerHTML = `${new Date(e.ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${e.brand} · <b>${nfPrice.format(e.price)} €</b>`;
+    tip.style.left = (pts[best][0] / W * rect.width) + 'px';
+    tip.style.top = (pts[best][1] / H * rect.height - 8) + 'px';
+    tip.classList.add('show');
+  }
+  svg.addEventListener('pointerdown', (ev) => move(ev.clientX));
+  svg.addEventListener('pointermove', (ev) => { if (ev.buttons || ev.pointerType === 'touch') move(ev.clientX); });
+  svg.addEventListener('pointerup', () => tip.classList.remove('show'));
+  svg.addEventListener('pointerleave', () => tip.classList.remove('show'));
 }
 
 listEl.addEventListener('click', (e) => {
@@ -729,6 +917,22 @@ listEl.addEventListener('click', (e) => {
   const s = state.stations.find((x) => x.id === btn.dataset.id);
   if (s) openStation(s);
 });
+
+// F19 · press de dos tiempos: la cifra se hunde un poco al pulsar; barrido cálido al soltar.
+listEl.addEventListener('pointerdown', (e) => {
+  const btn = e.target.closest('.card-btn');
+  if (btn) btn.classList.add('pressing');
+});
+function releaseCard(e) {
+  const btn = e.target.closest ? e.target.closest('.card-btn') : null;
+  listEl.querySelectorAll('.card-btn.pressing').forEach((b) => {
+    b.classList.remove('pressing');
+    if (b === btn && !reduced()) { const sw = b.querySelector('.sweep'); if (sw) { sw.classList.remove('go'); void sw.offsetWidth; sw.classList.add('go'); } }
+  });
+}
+listEl.addEventListener('pointerup', releaseCard);
+listEl.addEventListener('pointercancel', releaseCard);
+listEl.addEventListener('pointerleave', (e) => { const b = e.target.closest && e.target.closest('.card-btn'); if (b) b.classList.remove('pressing'); }, true);
 
 // veredicto y consejo premium: tocar un enlace con data-id abre esa ficha
 const openFromLink = (e) => {
@@ -790,9 +994,41 @@ sheetBody.addEventListener('submit', (e) => {
     odo,
   };
   saveLog([entry, ...loadLog()]);
-  closeSheet();
-  toast(`Repostaje guardado · ${nfEuro.format(t)} €`);
+  saveReward(form, price); // F10 · recompensa honesta al guardar
 });
+
+// F10 · al guardar: gotita en el botón, y toast con veredicto honesto vs tu media previa.
+function saveReward(form, price) {
+  const log = loadLog();
+  const prices = log.map((e) => e.price);
+  const avg = prices.length > 1 ? prices.slice(1).reduce((a, b) => a + b, 0) / (prices.length - 1) : null;
+  const btn = form.querySelector('.log-save');
+  if (!reduced() && btn) {
+    const drop = document.createElement('span');
+    drop.className = 'save-drop';
+    drop.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3c-3.5 4.6-5.5 7.5-5.5 10.2a5.5 5.5 0 0 0 11 0C17.5 10.5 15.5 7.6 12 3Z" fill="currentColor"/></svg>';
+    btn.appendChild(drop);
+    drop.animate([
+      { transform: 'translateY(-22px) scaleY(1.1)', opacity: 0 },
+      { transform: 'translateY(0) scaleY(1)', opacity: 1, offset: 0.55 },
+      { transform: 'translateY(0) scaleX(1.4) scaleY(0.7)', opacity: 1, offset: 0.7 },
+      { transform: 'translateY(0) scale(1)', opacity: 0 },
+    ], { duration: 600, easing: 'cubic-bezier(0.34,1.4,0.64,1)' }).onfinish = () => drop.remove();
+  }
+  setTimeout(() => {
+    closeSheet();
+    let verdict = '';
+    if (avg != null) {
+      const diff = price - avg;
+      const below = diff <= 0;
+      const mark = below ? '<svg class="vmark" viewBox="0 0 24 24"><path d="M5 13l4 4 10-11"/></svg>' : '<svg class="vmark" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+      verdict = `<div class="toast-verdict ${below ? 'below' : 'above'}">${mark}${nfPrice.format(Math.abs(diff))} €/L ${below ? 'por debajo' : 'por encima'} de tu media</div>`;
+    }
+    toast(`Repostaje guardado · ${nfEuro.format(loadLog()[0].total)} €`, verdict);
+    const g = gastosBtn; // F10 · pulso del botón de gastos
+    if (!reduced() && g) { g.classList.remove('pulse'); void g.offsetWidth; g.classList.add('pulse'); }
+  }, reduced() ? 0 : 280);
+}
 
 // ---------- vista de gastos ----------
 
@@ -831,11 +1067,12 @@ logBody.addEventListener('click', (e) => {
 
 let toastTimer = null;
 
-function toast(msg, ms = 2600) {
-  toastEl.textContent = msg;
+// 2º parámetro opcional: HTML de una segunda línea (p. ej. el veredicto €/L de F10).
+function toast(msg, html2 = '') {
+  toastEl.innerHTML = `<div>${msg}</div>${html2}`;
   toastEl.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), html2 ? 3400 : 2600);
 }
 
 // ---------- segmented controls ----------
@@ -890,6 +1127,26 @@ dtoSeg.addEventListener('click', (e) => {
   if (state.mapOpen) updatePins(mapArgs());
 });
 
+// F5 · reflujo FLIP: anima el reordenamiento midiendo posiciones de cada tarjeta (por id)
+// antes y después del re-render. Solo toca transform; el resto de renderAll no se ve afectado.
+function flipReorder(mutate) {
+  if (reduced()) { mutate(); return; }
+  const before = new Map();
+  listEl.querySelectorAll('.card').forEach((c) => before.set(c.dataset.id, c.getBoundingClientRect().top));
+  mutate();
+  listEl.querySelectorAll('.card').forEach((c) => {
+    const oldTop = before.get(c.dataset.id);
+    if (oldTop == null) return;
+    const delta = oldTop - c.getBoundingClientRect().top;
+    if (!delta) return;
+    const travel = Math.min(1, Math.abs(delta) / 600);
+    c.animate([{ transform: `translateY(${delta}px)` }, { transform: 'none' }],
+      { duration: 420, delay: travel * 18, easing: 'cubic-bezier(0.32,0.72,0,1)' });
+  });
+  const topMono = listEl.querySelector('.card .mono'); // mono-pop de la que asciende al top
+  if (topMono) { topMono.classList.remove('is-popping'); void topMono.offsetWidth; topMono.classList.add('is-popping'); }
+}
+
 sortSeg.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-sort]');
   if (!btn || btn.dataset.sort === state.sort) return;
@@ -898,9 +1155,7 @@ sortSeg.addEventListener('click', async (e) => {
     setSeg(sortSeg, 'sort', 'near');
     try {
       state.pos = await requestPosition();
-      computeDistances();
-      state.sort = 'near';
-      renderAll(false);
+      flipReorder(() => { computeDistances(); state.sort = 'near'; renderAll(false); });
     } catch {
       setSeg(sortSeg, 'sort', state.sort);
       toast('No se pudo acceder a tu ubicación');
@@ -909,10 +1164,61 @@ sortSeg.addEventListener('click', async (e) => {
   }
   state.sort = btn.dataset.sort;
   setSeg(sortSeg, 'sort', state.sort);
-  renderAll(false); // reordenar es instantáneo, no re-anima 200 tarjetas
+  flipReorder(() => renderAll(false)); // FLIP en vez de re-animar 200 tarjetas
 });
 
 // ---------- mapa ----------
+
+// F16 · contenido de la mini-tarjeta del pin (lo pinta map.js; usa los helpers de app.js)
+function miniCardHTML(s) {
+  const price = priceOf(s);
+  const qc = makeQClass(state.mode ? state.stations.filter(inMode) : state.stations);
+  const q = price != null ? qc(price) : 'q1';
+  const st = scheduleStatus(s.schedule);
+  const open = st ? (st.always ? '24 h' : st.open ? 'Abierto' : 'Cerrado') : '';
+  const name = brandCase(s.brand);
+  const meta = `${shortTown(s.town)}${s._km != null ? ` · a ${formatKm(s._km)}` : ''}${open ? ` · ${open}` : ''}`;
+  return `<div class="mini-head">${monoHTML(s, name)}
+      <div style="flex:1;min-width:0"><div class="mini-name">${name}</div><div class="mini-meta">${meta}</div></div>
+      <div class="mini-price ${q}">${price != null ? fmtPrice(price) : '—'}</div></div>
+    <div class="mini-actions">
+      <button class="mini-btn secondary" type="button" data-mini-sheet><svg class="ic"><use href="#i-list"/></svg> Ver ficha</button>
+      <a class="mini-btn primary" href="${googleMapsUrl(s.lat, s.lng)}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-nav"/></svg> Cómo llegar</a>
+    </div>`;
+}
+
+// F4 · al abrir el mapa, las cifras de la lista vuelan a sus pines
+function flyPricesToMap() {
+  if (reduced()) return;
+  const mapEl = document.getElementById('map');
+  if (!mapEl) return;
+  const mapRect = mapEl.getBoundingClientRect();
+  const items = [...listEl.querySelectorAll('.card')].slice(0, 14).map((card) => {
+    const num = card.querySelector('.card-price .num');
+    const pc = card.querySelector('.card-price');
+    const s = state.stations.find((x) => x.id === card.dataset.id);
+    if (!num || !pc || !s) return null;
+    const q = [...pc.classList].find((c) => /^q\d$/.test(c));
+    return { rect: num.getBoundingClientRect(), text: num.textContent, q, s, price: priceOf(s) };
+  }).filter(Boolean);
+  items.sort((a, b) => a.price - b.price);
+  items.forEach((n, i) => {
+    const pt = mapProject(n.s.lat, n.s.lng);
+    if (!pt) return;
+    const clone = document.createElement('div');
+    clone.className = `fly-num ${n.q || ''}`;
+    clone.textContent = n.text;
+    clone.style.left = `${n.rect.left}px`;
+    clone.style.top = `${n.rect.top}px`;
+    document.body.appendChild(clone);
+    const dx = (mapRect.left + pt.x) - n.rect.left - n.rect.width / 2;
+    const dy = (mapRect.top + pt.y) - n.rect.top - n.rect.height / 2;
+    clone.animate(
+      [{ transform: 'translate(0,0) scale(1)', opacity: 1 }, { transform: `translate(${dx}px, ${dy}px) scale(0.5)`, opacity: 0 }],
+      { duration: 620, delay: i * 28, easing: 'cubic-bezier(0.32,0.72,0,1)', fill: 'forwards' }
+    ).onfinish = () => clone.remove();
+  });
+}
 
 function mapArgs() {
   // mapa coherente con la lista: con una app activa, solo sus pines
@@ -923,23 +1229,38 @@ function mapArgs() {
     qClassOf: makeQClass(stations), // mismos colores que la lista (relativo a lo visible)
     fmtPrice,
     onSelect: openStation,
+    miniHTML: miniCardHTML, // F16
   };
 }
 
 let mapLastFocus = null;
 
-mapBtn.addEventListener('click', async () => {
+mapBtn.addEventListener('click', async (e) => {
   state.mapOpen = true;
   mapLastFocus = document.activeElement;
   mapView.hidden = false;
   mainEl.inert = true;
+  // F4 · wipe radial que revela el mapa desde el botón
+  if (!reduced()) {
+    const bx = ((e.clientX || window.innerWidth / 2) / window.innerWidth) * 100;
+    const by = ((e.clientY || window.innerHeight) / window.innerHeight) * 100;
+    mapView.style.setProperty('--reveal-x', `${bx}%`);
+    mapView.style.setProperty('--reveal-y', `${by}%`);
+    mapView.classList.add('revealing');
+    mapView.style.setProperty('--reveal-r', '0%');
+    requestAnimationFrame(() => { mapView.style.transition = 'clip-path 0.5s var(--ease-ios)'; mapView.style.setProperty('--reveal-r', '150%'); });
+    setTimeout(() => { mapView.classList.remove('revealing'); mapView.style.transition = ''; }, 520);
+  }
   try {
     await showMap({ ...mapArgs(), pos: state.pos });
+    requestAnimationFrame(() => flyPricesToMap()); // F4
     mapClose.focus({ preventScroll: true });
   } catch {
     mapView.hidden = true;
     mainEl.inert = false;
     state.mapOpen = false;
+    mapView.classList.remove('revealing');
+    mapView.style.transition = '';
     if (mapLastFocus && mapLastFocus.focus) mapLastFocus.focus({ preventScroll: true });
     toast('No se pudo cargar el mapa');
   }
@@ -947,6 +1268,7 @@ mapBtn.addEventListener('click', async () => {
 
 function closeMap() {
   if (mapView.hidden) return;
+  closeMini(); // F16
   closeSheet();
   mainEl.inert = false;
   mapView.classList.add('closing');
@@ -960,6 +1282,11 @@ function closeMap() {
 }
 
 mapClose.addEventListener('click', closeMap);
+
+// F17 · botón "Más barata cerca" → vuela a la más barata cercana (necesita ubicación)
+$('mapBest').addEventListener('click', () => {
+  if (!flyToCheapestNear()) toast('Toca “Más cercanas” primero para localizarte');
+});
 
 // Escape cierra los overlays de pantalla completa (la ficha ya tiene el suyo en sheet.js).
 // En captura para correr ANTES del handler de la ficha: si hay una ficha abierta encima
@@ -1004,30 +1331,109 @@ async function refresh({ silent = false } = {}) {
 
 updatedChip.addEventListener('click', () => refresh());
 updatedInline.addEventListener('click', () => refresh());
-retryBtn.addEventListener('click', () => refresh());
+retryBtn.addEventListener('click', () => {
+  errorState.classList.add('recovering'); // F21: el surtidor deja de hipar al reintentar
+  refresh().finally(() => errorState.classList.remove('recovering'));
+});
 
-// al volver a la app tras un rato, refrescar en silencio
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && state.fecha && Date.now() - state.fecha > 10 * 60 * 1000) {
-    refresh({ silent: true });
+// F20 · onboarding de un gesto sobre el gradiente (una sola vez)
+const ONBOARD_KEY = 'db.onboarded.v1';
+function runOnboarding() {
+  if (localStorage.getItem(ONBOARD_KEY)) return;
+  const champ = listEl.querySelector('.card.is-champion') || listEl.querySelector('.card');
+  if (!champ) return;
+  localStorage.setItem(ONBOARD_KEY, '1');
+  const layer = document.createElement('div');
+  layer.className = 'coach-layer';
+  document.body.appendChild(layer);
+  let done = false;
+  const finish = () => {
+    if (done) return; done = true;
+    layer.style.transition = 'opacity 0.3s'; layer.style.opacity = '0';
+    setTimeout(() => layer.remove(), 300);
+    leaveCoachMark();
+  };
+  layer.addEventListener('pointerdown', finish);
+
+  const r1 = champ.getBoundingClientRect();
+  const bubble = document.createElement('div');
+  bubble.className = 'coach-bubble point-up';
+  bubble.innerHTML = 'La más barata cerca. <b class="green">Verde</b> = ahorras.';
+  bubble.style.left = `${Math.max(12, r1.left)}px`;
+  bubble.style.top = `${r1.bottom + 10}px`;
+  layer.appendChild(bubble);
+  if (!reduced()) champ.classList.add('coach-beat');
+
+  // gota que baja y se vuelve roja: "cuanto más abajo, más cara"
+  if (!reduced()) {
+    const num = champ.querySelector('.card-price .num');
+    if (num) {
+      const g = num.getBoundingClientRect();
+      const drop = document.createElement('div');
+      drop.className = 'coach-drop';
+      drop.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="22"><path d="M12 3c-3.5 4.6-5.5 7.5-5.5 10.2a5.5 5.5 0 0 0 11 0C17.5 10.5 15.5 7.6 12 3Z" fill="currentColor"/></svg>';
+      drop.style.left = `${g.left}px`;
+      drop.style.top = `${g.top}px`;
+      layer.appendChild(drop);
+      setTimeout(() => {
+        bubble.innerHTML = '<b class="red">Rojo</b> = más cara, según bajas en la lista.';
+        drop.style.color = 'var(--q3)';
+        drop.style.transform = 'translateY(120px)';
+      }, 1300);
+    }
   }
+  setTimeout(finish, 2600);
+}
+function leaveCoachMark() {
+  const controls = document.querySelector('.controls');
+  if (!controls || document.querySelector('.coach-mark')) return;
+  const mark = document.createElement('div');
+  mark.className = 'coach-mark';
+  mark.textContent = 'Toca una gasolinera para ver horario y cómo llegar';
+  controls.after(mark);
+  const kill = () => { mark.style.opacity = '0'; setTimeout(() => mark.remove(), 300); listEl.removeEventListener('click', kill); };
+  listEl.addEventListener('click', kill);
+}
+
+// al volver a la app tras un rato, refrescar en silencio + actualizar la franja del día (F12)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  applyDaytime();
+  if (state.fecha && Date.now() - state.fecha > 10 * 60 * 1000) refresh({ silent: true });
 });
 
 // ---------- barra compacta al hacer scroll ----------
+// F6 · la topbar cuaja como vidrio: --t (0→1) controla opacidad/blur/fondo y la migración
+// de la cifra; --chip-t muestra el chip de actualizar más tarde. F13 · --sy alimenta el parallax.
 
 const hero = document.querySelector('.hero');
-let topbarShown = false;
+const heroEl = document.querySelector('.hero-art');
+topbar.classList.add('scroll-driven');
+let ticking = false;
 
-function updateTopbar() {
-  const show = window.scrollY > hero.offsetHeight - 24;
-  if (show !== topbarShown) {
-    topbarShown = show;
-    topbar.setAttribute('data-shown', String(show));
-  }
+// F12 · el Teide según la hora real (recolorea el cielo del hero por franja del día)
+function applyDaytime() {
+  if (!heroEl) return;
+  const h = new Date().getHours();
+  heroEl.setAttribute('data-daytime', h < 8 ? 'dawn' : h < 18 ? 'day' : h < 21 ? 'dusk' : 'night');
 }
 
-window.addEventListener('scroll', updateTopbar, { passive: true });
-updateTopbar();
+function onScroll() {
+  if (ticking) return;
+  ticking = true;
+  requestAnimationFrame(() => {
+    const y = window.scrollY;
+    const t = Math.max(0, Math.min(1, (y - (hero.offsetHeight - 90)) / 80));
+    document.documentElement.style.setProperty('--t', t.toFixed(3));
+    document.documentElement.style.setProperty('--chip-t', t > 0.6 ? '1' : '0');
+    topbar.setAttribute('data-shown', String(t > 0.02));
+    hero.style.setProperty('--sy', String(y)); // F13 parallax
+    ticking = false;
+  });
+}
+
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
 
 // ---------- tirar para refrescar (solo PWA instalada) ----------
 
@@ -1075,6 +1481,7 @@ if (isStandalone) {
 
 async function init() {
   // arranca sin app de descuento activa (modo normal)
+  applyDaytime(); // F12
   setSeg(fuelSeg, 'fuel', state.fuel);
   setSeg(sortSeg, 'sort', state.sort);
 
@@ -1104,6 +1511,9 @@ async function init() {
   if (!isStandalone) {
     permissionState().then((st) => { if (st === 'granted') autoLocate(); });
   }
+
+  // F20 · onboarding del gradiente, tras asentarse la entrada (una sola vez)
+  dataReady.finally(() => setTimeout(runOnboarding, reduced() ? 600 : 1800));
 }
 
 init();
