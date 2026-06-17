@@ -1,0 +1,820 @@
+/* ============================================================
+   Diésel Barato · 21 features — CSS
+   Pegar cada bloque al FINAL de css/styles.css (o cargar este
+   archivo después). Usa SOLO los tokens existentes.
+   Solo anima transform / opacity / clip-path / custom-props.
+   ============================================================ */
+
+
+/* ============================================================
+   F1 · EL SELLO DE LA MÁS BARATA  (one-shot champion)
+   JS añade .is-champion a la tarjeta nº1 tras el último escalón.
+   ============================================================ */
+
+.card.is-champion .best-tag {
+  transform-origin: left center;
+  animation: stamp-in 0.42s var(--ease-pop) both;
+}
+@keyframes stamp-in {
+  0%   { opacity: 0; transform: scale(0.7) rotate(-3deg); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* la gota del tag se "dibuja" con stroke */
+.card.is-champion .best-tag .tag-ic path {
+  stroke: var(--q0);
+  stroke-width: 2;
+  fill: none;
+  stroke-dasharray: 92;
+  stroke-dashoffset: 92;
+  animation: draw-drop 0.4s var(--ease-ios) 0.12s forwards;
+}
+.card.is-champion .best-tag .tag-ic circle { opacity: 0; animation: fade-in 0.2s ease 0.5s forwards; }
+@keyframes draw-drop { to { stroke-dashoffset: 0; } }
+@keyframes fade-in { to { opacity: 1; } }
+
+/* un único realce de la cifra al asentarse (nunca en bucle) */
+.card.is-champion .card-price.q0 .num {
+  animation: price-settle 0.5s var(--ease-pop) both;
+}
+@keyframes price-settle {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.is-champion .best-tag,
+  .card.is-champion .best-tag .tag-ic path,
+  .card.is-champion .best-tag .tag-ic circle,
+  .card.is-champion .card-price.q0 .num { animation: none !important; }
+  .card.is-champion .best-tag .tag-ic path { stroke-dashoffset: 0; }
+  .card.is-champion .best-tag .tag-ic circle { opacity: 1; }
+}
+
+
+/* ============================================================
+   F2 · TERMÓMETRO DE RANGO EN LA FICHA
+   Va en #sheetBody, encima de .price-grid.
+   ============================================================ */
+
+.meter { padding: 16px 0 6px; }
+
+.meter-track {
+  position: relative;
+  height: 9px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--q0) 0%, var(--q1) 38%, var(--q2) 66%, var(--q3) 100%);
+  box-shadow: inset 0 0 0 0.5px var(--hair);
+}
+
+.meter-marker {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 18px; height: 18px;
+  margin: -9px 0 0 -9px;
+  color: var(--ink);
+  transform: translateX(0);
+  transition: transform 0.6s var(--ease-ios);
+  filter: drop-shadow(0 1px 3px rgba(40,30,14,0.35));
+}
+.meter-marker svg { display: block; width: 100%; height: 100%; }
+
+.meter-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 9px;
+  font-family: var(--serif);
+  font-size: 13px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+}
+.meter-labels .lo { color: var(--q0); }
+.meter-labels .hi { color: var(--q3); }
+
+.meter-phrase {
+  margin-top: 7px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.meter-phrase strong { color: var(--ink); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-marker { transition: none !important; }
+}
+
+
+/* ============================================================
+   F3 · CONTADOR RODILLO MECÁNICO  (.digit-roll)
+   animateValue() (drop-in) construye estas columnas.
+   ============================================================ */
+
+.digit-roll {
+  display: inline-flex;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+.digit-roll .col {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  height: 1em;
+  vertical-align: baseline;
+}
+.digit-roll .col .strip {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+.digit-roll .col .strip span {
+  height: 1em;
+  line-height: 1;
+  display: block;
+  text-align: center;
+}
+.digit-roll .sym { display: inline-block; } /* € , . fijos */
+
+
+/* ============================================================
+   F4 · EL PRECIO VUELA DE LA LISTA AL MAPA (FLIP)
+   ============================================================ */
+
+.fly-num {
+  position: fixed;
+  z-index: 2000;
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 23px;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.fly-num.q0 { color: var(--q0); }
+.fly-num.q1 { color: var(--q1); }
+.fly-num.q2 { color: var(--q2); }
+.fly-num.q3 { color: var(--q3); }
+
+/* el overlay del mapa se revela con un wipe radial desde el botón */
+.mapview.revealing { clip-path: circle(var(--reveal-r, 0%) at var(--reveal-x, 50%) var(--reveal-y, 100%)); }
+
+
+/* ============================================================
+   F5 · REFLUJO FLIP AL REORDENAR  (mono pop al ascender al top)
+   ============================================================ */
+
+@keyframes mono-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.mono.is-popping { animation: mono-pop 0.4s var(--ease-pop); }
+
+/* estado "localizando" mientras llegan las distancias */
+.locating-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.locating-hint .drop { width: 18px; height: 18px; color: var(--accent); animation: drip 0.9s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .locating-hint .drop { animation: none !important; } }
+
+
+/* ============================================================
+   F6 · TOPBAR QUE CUAJA COMO VIDRIO AL SUBIR
+   JS fija --t (0→1) en :root desde scrollY.
+   ============================================================ */
+
+.topbar.scroll-driven {
+  transform: translateY(0);
+  transition: none;
+  /* visibilidad e interacción ligadas a --t */
+  opacity: var(--t, 0);
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(calc(var(--t, 0) * 20px)) saturate(1.6);
+  backdrop-filter: blur(calc(var(--t, 0) * 20px)) saturate(1.6);
+  background: rgba(246, 241, 231, calc(var(--t, 0) * 0.82));
+  border-bottom-color: rgba(70, 56, 34, calc(var(--t, 0) * 0.10));
+}
+.topbar.scroll-driven[data-shown="true"] { pointer-events: auto; }
+
+@media (prefers-color-scheme: dark) {
+  .topbar.scroll-driven { background: rgba(28, 25, 22, calc(var(--t, 0) * 0.82)); }
+}
+
+/* la cifra "Más barata" migra al título de la topbar */
+.topbar-price {
+  font-family: var(--serif);
+  font-weight: 640;
+  color: var(--q0);
+  font-variant-numeric: tabular-nums;
+  /* tamaño y opacidad interpolados con --t */
+  font-size: calc(15px + var(--t, 0) * 2px);
+  opacity: var(--t, 0);
+  transform: translateY(calc((1 - var(--t, 0)) * 6px));
+  margin-left: auto;
+  margin-right: 4px;
+}
+.topbar.scroll-driven .topbar-title { opacity: calc(0.35 + var(--t, 0) * 0.65); }
+.topbar.scroll-driven .updated-chip {
+  opacity: var(--chip-t, 0);
+  transform: translateY(calc((1 - var(--chip-t, 0)) * -6px));
+  transition: opacity 0.25s var(--ease-ios), transform 0.25s var(--ease-ios);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topbar.scroll-driven {
+    transition: opacity 0.25s ease !important;
+    backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+    background: var(--material);
+  }
+  .topbar-price { transition: none !important; }
+}
+
+
+/* ============================================================
+   F7 · CERRAR LA FICHA CON RESORTE  (el asa reacciona)
+   El snap-back / cierre los anima sheet.js con WAAPI.
+   ============================================================ */
+
+.sheet.dragging .sheet-grip span,
+.sheet.gripping .sheet-grip span {
+  width: 46px;
+  background: var(--ink-3);
+  transition: width 0.18s var(--ease-pop), background 0.18s;
+}
+.sheet-grip span { transition: width 0.25s var(--ease-ios), background 0.25s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet.dragging .sheet-grip span, .sheet.gripping .sheet-grip span { width: 38px; background: var(--hair-strong); }
+}
+
+
+/* ============================================================
+   F8 · LA FICHA ALEJA Y DESENFOCA EL FONDO
+   --sheet-p (0→1) lo fija la apertura y el touchmove.
+   ============================================================ */
+
+#app.sheet-depth #main {
+  transform: scale(calc(1 - var(--sheet-p, 0) * 0.04));
+  filter: blur(calc(var(--sheet-p, 0) * 3px));
+  transform-origin: 50% 30%;
+  transition: transform 0.42s var(--ease-ios), filter 0.42s var(--ease-ios);
+}
+#app.sheet-depth.dragging-depth #main { transition: none; }
+
+/* entrada escalonada del contenido de la ficha */
+.sheet.open .sheet-stagger > * {
+  animation: sheet-row-in 0.4s var(--ease-ios) both;
+  animation-delay: calc(var(--si, 0) * 35ms + 120ms);
+}
+@keyframes sheet-row-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app.sheet-depth #main { transform: none !important; filter: none !important; }
+  .sheet.open .sheet-stagger > * { animation: none !important; }
+}
+
+
+/* ============================================================
+   F9 · AGUJA DEL CONSUMO  (gauge cálido)
+   Sustituye la celda L/100 km de .log-consumo.
+   ============================================================ */
+
+.gauge-cell {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+}
+.gauge {
+  position: relative;
+  flex: 0 0 auto;
+  width: 116px; height: 92px;
+}
+.gauge svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.gauge-arc-bg { fill: none; stroke: var(--hair); stroke-width: 6; stroke-linecap: round; }
+.gauge-arc { fill: none; stroke: url(#gaugeGrad); stroke-width: 6; stroke-linecap: round; }
+.gauge-tick { stroke: var(--ink-3); stroke-width: 1.5; opacity: 0.5; }
+.gauge-ticklabel { fill: var(--ink-3); font-family: var(--sans); font-size: 7.5px; }
+.gauge-needle { stroke-width: 2.4; stroke-linecap: round; transform-box: fill-box; transform-origin: 60px 60px; }
+.gauge-pivot { fill: var(--accent); }
+.gauge-center {
+  position: absolute;
+  left: 0; right: 0; bottom: 6px;
+  text-align: center;
+}
+.gauge-num {
+  display: block;
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.gauge-unit { font-size: 11px; color: var(--ink-2); }
+.gauge-side { flex: 1; min-width: 0; }
+.gauge-side .log-consumo-val { font-size: 19px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gauge-needle { transition: none !important; }
+}
+
+
+/* ============================================================
+   F10 · RECOMPENSA HONESTA AL GUARDAR
+   ============================================================ */
+
+.save-drop {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 20px; height: 26px;
+  margin: -13px 0 0 -10px;
+  color: #FDF9F1;
+  pointer-events: none;
+  z-index: 2;
+}
+.save-drop svg { width: 100%; height: 100%; display: block; }
+.log-save { position: relative; overflow: hidden; }
+
+/* toast enriquecido: segunda línea con veredicto €/L */
+.toast .toast-verdict {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.toast .toast-verdict.below { color: var(--q0); }
+.toast .toast-verdict.above { color: var(--q3); }
+.toast .vmark { width: 14px; height: 14px; }
+.toast .vmark path {
+  fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 24; stroke-dashoffset: 24;
+  animation: draw-mark 0.4s var(--ease-ios) 0.1s forwards;
+}
+@keyframes draw-mark { to { stroke-dashoffset: 0; } }
+
+@keyframes chart-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+.gastos-btn.pulse { animation: chart-pulse 0.5s var(--ease-pop); }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast .vmark path { animation: none !important; stroke-dashoffset: 0; }
+  .gastos-btn.pulse { animation: none !important; }
+}
+
+
+/* ============================================================
+   F11 · SPARKLINE DE TU €/L EN EL TIEMPO
+   ============================================================ */
+
+.spark-card {
+  background: var(--card);
+  border: 0.5px solid var(--hair);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 16px 16px 12px;
+  margin-top: 14px;
+}
+.spark-card .log-section-title { margin: 0 0 4px; }
+.spark-wrap { position: relative; }
+.spark-svg { display: block; width: 100%; height: 96px; overflow: visible; }
+.spark-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: var(--len, 1000);
+  stroke-dashoffset: var(--len, 1000);
+  animation: spark-draw 0.7s var(--ease-ios) forwards;
+}
+@keyframes spark-draw { to { stroke-dashoffset: 0; } }
+.spark-avg { stroke: var(--hair-strong); stroke-width: 1; stroke-dasharray: 2 3; }
+.spark-dot { opacity: 0; animation: fade-in 0.3s ease forwards; }
+.spark-dot.q0 { fill: var(--q0); } .spark-dot.q1 { fill: var(--q1); }
+.spark-dot.q2 { fill: var(--q2); } .spark-dot.q3 { fill: var(--q3); }
+.spark-last-label {
+  font-family: var(--serif);
+  font-size: 13px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+  fill: var(--ink);
+}
+.spark-phrase { margin-top: 8px; font-size: 12.5px; color: var(--ink-2); text-wrap: pretty; }
+.spark-phrase strong { color: var(--ink); }
+
+.spark-tip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: var(--material);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  backdrop-filter: blur(16px) saturate(1.6);
+  border: 0.5px solid var(--hair-strong);
+  border-radius: 9px;
+  box-shadow: var(--shadow-float);
+  padding: 6px 9px;
+  font-size: 11.5px;
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.spark-tip.show { opacity: 1; }
+.spark-tip b { font-family: var(--serif); font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .spark-line { animation: none !important; stroke-dashoffset: 0; }
+  .spark-dot { animation: none !important; opacity: 1; }
+}
+
+
+/* ============================================================
+   F12 · EL TEIDE SEGÚN LA HORA REAL
+   JS pone data-daytime en .hero-art; reescribe variables del cielo.
+   ============================================================ */
+
+.hero-art {
+  --sky-1: transparent;
+  --sky-2: transparent;
+  transition: --sky-1 0.8s linear, --sky-2 0.8s linear;
+}
+.hero-sky-stop-1 { stop-color: var(--sky-1); }
+.hero-sky-stop-2 { stop-color: var(--sky-2); }
+.hero-star { opacity: 0; transition: opacity 0.8s; }
+
+.hero-art[data-daytime="dawn"]  { --sky-1: #F4D2B0; --sky-2: #F3E4CF; --art-sun: #E9C07E; }
+.hero-art[data-daytime="day"]   { --sky-1: #F8F0DD; --sky-2: #F6F1E7; }
+.hero-art[data-daytime="dusk"]  { --sky-1: #E0A176; --sky-2: #F0D2B4; --art-sun: var(--art-sun-deep); }
+.hero-art[data-daytime="night"] { --sky-1: #3A2A26; --sky-2: #5A4036; --art-sun: #E8DCC4; }
+.hero-art[data-daytime="night"] .hero-star { opacity: 0.5; }
+
+@media (prefers-color-scheme: dark) {
+  .hero-art[data-daytime="dawn"]  { --sky-1: #2E211C; --sky-2: #3A2A22; }
+  .hero-art[data-daytime="day"]   { --sky-1: #221E1A; --sky-2: #1C1916; }
+  .hero-art[data-daytime="dusk"]  { --sky-1: #3A241B; --sky-2: #2A1F18; }
+  .hero-art[data-daytime="night"] { --sky-1: #181412; --sky-2: #281C18; }
+}
+
+@property --sky-1 { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --sky-2 { syntax: '<color>'; inherits: true; initial-value: transparent; }
+
+
+/* ============================================================
+   F13 · PARALLAX CÁLIDO DEL HERO
+   JS escribe --sy (scrollY) en .hero.
+   ============================================================ */
+
+.hero { --sy: 0; }
+.hero-art .layer-sky { transform: translateY(clamp(0px, calc(var(--sy) * 0.02px), 12px)); }
+.hero-art .layer-sun { transform: translateY(clamp(-8px, calc(var(--sy) * -0.03px), 0px)); }
+.hero-art .layer-mid { transform: translateY(clamp(0px, calc(var(--sy) * 0.06px), 18px)); }
+.hero-art .layer-fore { transform: translateY(clamp(0px, calc(var(--sy) * 0.12px), 24px)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-art .layer-sky, .hero-art .layer-sun, .hero-art .layer-mid, .hero-art .layer-fore { transform: none !important; }
+}
+
+
+/* ============================================================
+   F14 · BRISA: PALMERA Y PÁJAROS  (puro CSS)
+   ============================================================ */
+
+.palm-leaves { transform-box: fill-box; transform-origin: 50% 90%; animation: palm-sway 5.5s ease-in-out infinite; }
+@keyframes palm-sway {
+  0%, 100% { transform: rotate(-1.5deg); }
+  30% { transform: rotate(0.8deg); }
+  55% { transform: rotate(-0.6deg); }
+  78% { transform: rotate(1.2deg); }
+}
+
+.bird-flap { transform-box: fill-box; transform-origin: 50% 50%; animation: bird-flap 1.2s ease-in-out infinite; }
+.bird-flap.b2 { animation-delay: 0.4s; }
+@keyframes bird-flap {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-1.5px) scaleY(0.7); }
+}
+
+.mote { animation: mote-float 8s linear infinite; }
+.mote.m2 { animation-delay: 2.6s; }
+.mote.m3 { animation-delay: 5.2s; }
+@keyframes mote-float {
+  0% { transform: translate(0, 0); opacity: 0; }
+  15% { opacity: 0.4; }
+  85% { opacity: 0.4; }
+  100% { transform: translate(28px, -22px); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palm-leaves, .bird-flap, .mote { animation: none !important; }
+  .mote { opacity: 0; }
+}
+
+
+/* ============================================================
+   F16 · MINI-TARJETA QUE BROTA DEL PIN
+   ============================================================ */
+
+.mini-card {
+  position: absolute;
+  z-index: 1100;
+  width: 230px;
+  background: var(--card);
+  border: 0.5px solid var(--hair);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-float);
+  padding: 11px 12px;
+  transform-origin: 50% calc(100% + 12px);
+  animation: mini-pop 0.28s var(--ease-pop) both;
+}
+@keyframes mini-pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.85); }
+  to { opacity: 1; transform: none; }
+}
+.mini-card.closing { animation: mini-out 0.18s var(--ease-ios) forwards; }
+@keyframes mini-out { to { opacity: 0; transform: translateY(6px) scale(0.9); } }
+
+.mini-card::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: -7px;
+  width: 14px; height: 14px;
+  margin-left: -7px;
+  background: var(--card);
+  border-right: 0.5px solid var(--hair);
+  border-bottom: 0.5px solid var(--hair);
+  transform: rotate(45deg);
+}
+.mini-head { display: flex; align-items: center; gap: 9px; }
+.mini-head .mono { width: 34px; height: 34px; font-size: 13px; border-radius: 11px; }
+.mini-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-meta { font-size: 11.5px; color: var(--ink-2); margin-top: 1px; }
+.mini-price {
+  font-family: var(--serif);
+  font-size: 21px;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+.mini-price.q0 { color: var(--q0); } .mini-price.q1 { color: var(--q1); }
+.mini-price.q2 { color: var(--q2); } .mini-price.q3 { color: var(--q3); }
+.mini-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; }
+.mini-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 9px 6px;
+  font-size: 13px; font-weight: 600;
+  border-radius: 11px;
+  text-decoration: none;
+}
+.mini-btn .ic { width: 15px; height: 15px; }
+.mini-btn.primary { background: var(--accent); color: #FDF9F1; }
+.mini-btn.secondary { background: var(--bg); color: var(--ink); border: 0.5px solid var(--hair-strong); }
+.mini-btn:active { transform: scale(0.96); }
+
+.pin.is-picked { transform: translate(-50%, -50%) scale(1.12); z-index: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mini-card { animation: fade-in 0.18s ease both; }
+  .mini-card.closing { animation: none; opacity: 0; }
+}
+
+
+/* ============================================================
+   F17 · VUELA A LA MÁS BARATA CERCA  (botón gemelo del map-close)
+   ============================================================ */
+
+.map-best {
+  position: absolute;
+  bottom: calc(var(--sab) + 22px);
+  left: 14px;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--material);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  border: 0.5px solid var(--hair-strong);
+  border-radius: 99px;
+  box-shadow: var(--shadow-float);
+  transition: transform 0.2s var(--ease-pop), opacity 0.2s;
+}
+.map-best .ilc { width: 18px; height: 18px; }
+.map-best:active { transform: scale(0.94); }
+.map-best:disabled { opacity: 0.4; pointer-events: none; }
+
+@keyframes pin-land {
+  0% { transform: translate(-50%, -50%) scale(0.9); }
+  55% { transform: translate(-50%, -50%) scale(1.08); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+.pin.is-landing { animation: pin-land 0.45s var(--ease-pop); }
+@media (prefers-reduced-motion: reduce) { .pin.is-landing { animation: none !important; } }
+
+
+/* ============================================================
+   F18 · RACIMOS QUE SE ABREN AL ACERCARTE
+   ============================================================ */
+
+.cluster {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  min-width: 30px; height: 30px;
+  padding: 0 8px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #FDF9F1;
+  border-radius: 99px;
+  border: 1.5px solid rgba(253, 249, 241, 0.85);
+  box-shadow: 0 2px 10px rgba(30, 20, 8, 0.32);
+  animation: cluster-in 0.25s var(--ease-pop) both;
+}
+.cluster.q0 { background: #4A7536; }
+.cluster.q1 { background: #7E6A1F; }
+.cluster.q2 { background: #96541F; }
+.cluster.q3 { background: #9C3E24; }
+@keyframes cluster-in { from { opacity: 0; transform: translate(-50%,-50%) scale(0.6); } to { opacity: 1; } }
+
+.pin.from-cluster { animation: pin-bloom 0.35s var(--ease-pop) both; }
+@keyframes pin-bloom {
+  from { opacity: 0; transform: translate(-50%,-50%) scale(0); }
+  to { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cluster, .pin.from-cluster { animation: none !important; opacity: 1; }
+}
+
+
+/* ============================================================
+   F19 · EL PRECIO QUE SE HUNDE AL PULSAR LA TARJETA
+   ============================================================ */
+
+.card-btn.pressing .mono { animation: mono-pop 0.32s var(--ease-pop); }
+.card-btn.pressing .card-price .num {
+  transform: translateY(2px);
+  transition: transform 0.12s var(--ease-ios);
+}
+.card-price .num { transition: transform 0.2s var(--ease-ios); }
+
+/* barrido cálido al soltar (pseudo-elemento, nunca tapa la cifra) */
+.card-btn { position: relative; overflow: hidden; }
+.card-btn .sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(174, 82, 48, 0.10) 50%, transparent 70%);
+  transform: translateX(-100%);
+}
+.card-btn .sweep.go { animation: card-sweep 0.28s var(--ease-ios); }
+@keyframes card-sweep { to { transform: translateX(100%); } }
+
+@media (prefers-color-scheme: dark) {
+  .card-btn .sweep { background: linear-gradient(100deg, transparent 30%, rgba(221, 138, 98, 0.12) 50%, transparent 70%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-btn.pressing .mono, .card-btn .sweep.go { animation: none !important; }
+  .card-btn.pressing .card-price .num { transform: none; }
+}
+
+
+/* ============================================================
+   F20 · ONBOARDING DE UN GESTO SOBRE EL GRADIENTE
+   ============================================================ */
+
+.coach-layer { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+.coach-bubble {
+  position: absolute;
+  max-width: 240px;
+  background: var(--material);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  border: 0.5px solid var(--hair-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-float);
+  padding: 11px 14px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  text-wrap: pretty;
+  pointer-events: auto;
+  transition: opacity 0.3s, transform 0.3s var(--ease-ios);
+}
+.coach-bubble b.green { color: var(--q0); }
+.coach-bubble b.red { color: var(--q3); }
+.coach-bubble::after {
+  content: '';
+  position: absolute;
+  width: 12px; height: 12px;
+  background: var(--material);
+  border-right: 0.5px solid var(--hair-strong);
+  border-bottom: 0.5px solid var(--hair-strong);
+  transform: rotate(45deg);
+}
+.coach-bubble.point-up::after { top: -6px; left: 30px; transform: rotate(-135deg); }
+
+.coach-drop {
+  position: fixed;
+  z-index: 46;
+  width: 18px; height: 22px;
+  color: var(--q0);
+  pointer-events: none;
+  transition: transform 0.7s var(--ease-ios), color 0.7s;
+}
+
+@keyframes champ-beat {
+  0%, 100% { transform: scale(1); }
+  25%, 75% { transform: scale(1.03); }
+}
+.card.coach-beat .card-btn { animation: champ-beat 1.2s var(--ease-pop); }
+
+.coach-mark {
+  margin: 10px 2px 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  text-align: center;
+  text-wrap: pretty;
+  transition: opacity 0.3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.coach-beat .card-btn { animation: none !important; }
+  .coach-drop { transition: none !important; }
+}
+
+
+/* ============================================================
+   F21 · SURTIDOR CON HIPO  (error + estado vacío)
+   ============================================================ */
+
+.error-hose { transform-box: fill-box; transform-origin: 80% 30%; animation: hose-hiccup 3s var(--ease-pop) infinite; }
+@keyframes hose-hiccup {
+  0%, 70%, 100% { transform: rotate(0deg); }
+  78% { transform: rotate(3deg); }
+  86% { transform: rotate(-3deg); }
+  93% { transform: rotate(1.5deg); }
+}
+.error-state.recovering .error-hose { transform: rotate(0deg); animation: none; }
+
+.error-drop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: error-drip 2.5s ease-in infinite;
+}
+@keyframes error-drip {
+  0% { transform: translateY(0) scaleY(1); opacity: 0; }
+  20% { opacity: 1; }
+  70% { transform: translateY(26px) scaleY(1.1); opacity: 1; }
+  80% { transform: translateY(26px) scaleX(1.6) scaleY(0.4); opacity: 0.8; }
+  100% { transform: translateY(26px) scaleX(1.6) scaleY(0.4); opacity: 0; }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 40px 24px;
+}
+.empty-state .empty-art { width: 120px; height: 96px; }
+.empty-title { font-family: var(--serif); font-size: 21px; font-weight: 600; }
+.empty-text { font-size: 14px; color: var(--ink-2); max-width: 270px; text-wrap: balance; }
+.empty-btn {
+  margin-top: 8px;
+  padding: 11px 22px;
+  font-size: 14.5px; font-weight: 600;
+  color: #FDF9F1; background: var(--accent);
+  border-radius: 99px;
+  transition: transform 0.2s var(--ease-pop);
+}
+.empty-btn:active { transform: scale(0.95); }
+
+@media (prefers-reduced-motion: reduce) {
+  .error-hose, .error-drop { animation: none !important; }
+  .error-drop { opacity: 0; }
+}

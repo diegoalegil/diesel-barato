@@ -66,6 +66,7 @@ const eur = (n) => `${nfPrice.format(n)} €`;
 
 // espacio duro (U+00A0) para pegar cifra y unidad en prosa, p. ej. "6,2 L/100 km"
 const NB = String.fromCharCode(160);
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const SMALL_WORDS = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'en', 'a', 'al']);
 
@@ -440,8 +441,9 @@ function cardHTML(s, rank, qClassOf, cheapestId, cheapestTag, animate) {
     `<span class="meta-town">${shortTown(s.town)}</span>` +
     (s._km != null ? `<span class="meta-fix">· a ${formatKm(s._km)}</span>` : '') +
     (open ? `<span class="meta-fix">· ${open}</span>` : '');
-  return `<li class="card${anim}">
+  return `<li class="card${anim}" data-id="${s.id}">
     <button class="card-btn" data-id="${s.id}">
+      <span class="sweep" aria-hidden="true"></span>
       ${monoHTML(s, name)}
       <span class="card-main">
         <span class="card-name">${name}</span>
@@ -458,6 +460,8 @@ function cardHTML(s, rank, qClassOf, cheapestId, cheapestTag, animate) {
     </button>
   </li>`;
 }
+
+let champTimer = null;
 
 function renderList(animate = true) {
   const list = sortedStations();
@@ -478,6 +482,15 @@ function renderList(animate = true) {
   heroCount.textContent = cfg
     ? `${list.length} estaciones ${cfg.net} · con ${cfg.app} −${state.dto} ct`
     : `Tenerife · ${list.length} gasolineras con ${FUELS.find((f) => f.key === state.fuel).label}`;
+
+  // F1 · sello de la más barata: marca la tarjeta nº1 tras el último escalón de entrada.
+  // cheapestId ya respeta la lente de descuento (cheapestStation sobre la lista visible).
+  clearTimeout(champTimer);
+  const champ = cheapestId && listEl.querySelector(`.card[data-id="${cheapestId}"]`);
+  if (champ) {
+    if (!animate || reduced()) champ.classList.add('is-champion');
+    else champTimer = setTimeout(() => champ.classList.add('is-champion'), Math.min(list.length - 1, 13) * 36 + 120);
+  }
 }
 
 function renderUpdated() {
@@ -730,6 +743,22 @@ listEl.addEventListener('click', (e) => {
   if (s) openStation(s);
 });
 
+// F19 · press de dos tiempos: la cifra se hunde un poco al pulsar; barrido cálido al soltar.
+listEl.addEventListener('pointerdown', (e) => {
+  const btn = e.target.closest('.card-btn');
+  if (btn) btn.classList.add('pressing');
+});
+function releaseCard(e) {
+  const btn = e.target.closest ? e.target.closest('.card-btn') : null;
+  listEl.querySelectorAll('.card-btn.pressing').forEach((b) => {
+    b.classList.remove('pressing');
+    if (b === btn && !reduced()) { const sw = b.querySelector('.sweep'); if (sw) { sw.classList.remove('go'); void sw.offsetWidth; sw.classList.add('go'); } }
+  });
+}
+listEl.addEventListener('pointerup', releaseCard);
+listEl.addEventListener('pointercancel', releaseCard);
+listEl.addEventListener('pointerleave', (e) => { const b = e.target.closest && e.target.closest('.card-btn'); if (b) b.classList.remove('pressing'); }, true);
+
 // veredicto y consejo premium: tocar un enlace con data-id abre esa ficha
 const openFromLink = (e) => {
   const btn = e.target.closest('[data-id]');
@@ -890,6 +919,26 @@ dtoSeg.addEventListener('click', (e) => {
   if (state.mapOpen) updatePins(mapArgs());
 });
 
+// F5 · reflujo FLIP: anima el reordenamiento midiendo posiciones de cada tarjeta (por id)
+// antes y después del re-render. Solo toca transform; el resto de renderAll no se ve afectado.
+function flipReorder(mutate) {
+  if (reduced()) { mutate(); return; }
+  const before = new Map();
+  listEl.querySelectorAll('.card').forEach((c) => before.set(c.dataset.id, c.getBoundingClientRect().top));
+  mutate();
+  listEl.querySelectorAll('.card').forEach((c) => {
+    const oldTop = before.get(c.dataset.id);
+    if (oldTop == null) return;
+    const delta = oldTop - c.getBoundingClientRect().top;
+    if (!delta) return;
+    const travel = Math.min(1, Math.abs(delta) / 600);
+    c.animate([{ transform: `translateY(${delta}px)` }, { transform: 'none' }],
+      { duration: 420, delay: travel * 18, easing: 'cubic-bezier(0.32,0.72,0,1)' });
+  });
+  const topMono = listEl.querySelector('.card .mono'); // mono-pop de la que asciende al top
+  if (topMono) { topMono.classList.remove('is-popping'); void topMono.offsetWidth; topMono.classList.add('is-popping'); }
+}
+
 sortSeg.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-sort]');
   if (!btn || btn.dataset.sort === state.sort) return;
@@ -898,9 +947,7 @@ sortSeg.addEventListener('click', async (e) => {
     setSeg(sortSeg, 'sort', 'near');
     try {
       state.pos = await requestPosition();
-      computeDistances();
-      state.sort = 'near';
-      renderAll(false);
+      flipReorder(() => { computeDistances(); state.sort = 'near'; renderAll(false); });
     } catch {
       setSeg(sortSeg, 'sort', state.sort);
       toast('No se pudo acceder a tu ubicación');
@@ -909,7 +956,7 @@ sortSeg.addEventListener('click', async (e) => {
   }
   state.sort = btn.dataset.sort;
   setSeg(sortSeg, 'sort', state.sort);
-  renderAll(false); // reordenar es instantáneo, no re-anima 200 tarjetas
+  flipReorder(() => renderAll(false)); // FLIP en vez de re-animar 200 tarjetas
 });
 
 // ---------- mapa ----------
