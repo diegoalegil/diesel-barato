@@ -534,7 +534,8 @@ function sheetHTML(s) {
   const myPrice = priceOf(s);
   const cfg = state.mode ? DISCOUNT_MODES[state.mode] : null;
   // con una app activa "la más barata" es dentro de su red; si no, de toda la isla
-  const pool = cfg ? stationsAvailable().filter(inMode) : stationsAvailable();
+  const allAvail = stationsAvailable();
+  const pool = cfg ? allAvail.filter(inMode) : allAvail;
   const cheapest = myPrice != null && pool.length > 0 && s.id === cheapestStation(pool).id;
   const cheapestLabel = cfg ? `La más barata con ${cfg.app}` : 'Mejor precio de la isla';
 
@@ -550,7 +551,7 @@ function sheetHTML(s) {
     ? (st.always ? 'Abierto 24 horas' : st.open ? `Abierto ahora${st.until ? ` · cierra a las ${st.until}` : ''}` : 'Cerrado ahora')
     : '';
 
-  return `
+  return `<div class="sheet-stagger">
     <div class="sheet-head">
       ${monoHTML(s, name)}
       <div>
@@ -559,6 +560,7 @@ function sheetHTML(s) {
         ${cheapest ? bestTagHTML(cheapestLabel) : ''}
       </div>
     </div>
+    ${rangeMeter(myPrice, allAvail)}
     <div class="sheet-rows">
       <div class="sheet-row">
         <svg class="ilc" aria-hidden="true"><use href="#il-pin"/></svg>
@@ -584,7 +586,31 @@ function sheetHTML(s) {
       <a class="action-btn primary" href="${googleMapsUrl(s.lat, s.lng)}" target="_blank" rel="noopener">
         <svg class="ic"><use href="#i-nav"/></svg> Cómo llegar
       </a>
-    </div>`;
+    </div>
+  </div>`;
+}
+
+// F2 · termómetro de rango: dónde cae el precio (efectivo) de esta estación dentro del
+// rango de diésel de la isla. Percentil real sobre priceOf (respeta la lente de descuento).
+function rangeMeter(price, pool) {
+  const prices = pool.map(priceOf).filter((p) => p != null);
+  if (price == null || prices.length < 2) return '';
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const span = Math.max(0.001, max - min);
+  const pct = Math.max(0, Math.min(1, (price - min) / span));
+  const cheaperThan = Math.round(prices.filter((p) => p > price).length / prices.length * 100);
+  const phrase = cheaperThan >= 50
+    ? `Más barata que el <strong>${cheaperThan}%</strong> de Tenerife.`
+    : `Más cara que el <strong>${100 - cheaperThan}%</strong> de Tenerife.`;
+  return `<div class="meter">
+    <div class="meter-track">
+      <div class="meter-marker" style="left:${(pct * 100).toFixed(1)}%">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 5C17 14 12 21 12 27.5 12 34.8 17.3 40.5 24 40.5S36 34.8 36 27.5C36 21 31 14 24 5Z" fill="currentColor"/></svg>
+      </div>
+    </div>
+    <div class="meter-labels"><span class="lo">${eur(min)}</span><span class="hi">${eur(max)}</span></div>
+    <div class="meter-phrase">${phrase}</div>
+  </div>`;
 }
 
 function openStation(s) {

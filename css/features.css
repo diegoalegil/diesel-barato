@@ -264,13 +264,14 @@
    --sheet-p (0→1) lo fija la apertura y el touchmove.
    ============================================================ */
 
-#app.sheet-depth #main {
+/* (adaptado: la app real no tiene wrapper #app; la profundidad va sobre #main) */
+#main.sheet-depth {
   transform: scale(calc(1 - var(--sheet-p, 0) * 0.04));
   filter: blur(calc(var(--sheet-p, 0) * 3px));
   transform-origin: 50% 30%;
   transition: transform 0.42s var(--ease-ios), filter 0.42s var(--ease-ios);
 }
-#app.sheet-depth.dragging-depth #main { transition: none; }
+#main.sheet-depth.dragging-depth { transition: none; }
 
 /* entrada escalonada del contenido de la ficha */
 .sheet.open .sheet-stagger > * {
@@ -283,7 +284,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #app.sheet-depth #main { transform: none !important; filter: none !important; }
+  #main.sheet-depth { transform: none !important; filter: none !important; }
   .sheet.open .sheet-stagger > * { animation: none !important; }
 }
 
