@@ -1331,7 +1331,69 @@ async function refresh({ silent = false } = {}) {
 
 updatedChip.addEventListener('click', () => refresh());
 updatedInline.addEventListener('click', () => refresh());
-retryBtn.addEventListener('click', () => refresh());
+retryBtn.addEventListener('click', () => {
+  errorState.classList.add('recovering'); // F21: el surtidor deja de hipar al reintentar
+  refresh().finally(() => errorState.classList.remove('recovering'));
+});
+
+// F20 · onboarding de un gesto sobre el gradiente (una sola vez)
+const ONBOARD_KEY = 'db.onboarded.v1';
+function runOnboarding() {
+  if (localStorage.getItem(ONBOARD_KEY)) return;
+  const champ = listEl.querySelector('.card.is-champion') || listEl.querySelector('.card');
+  if (!champ) return;
+  localStorage.setItem(ONBOARD_KEY, '1');
+  const layer = document.createElement('div');
+  layer.className = 'coach-layer';
+  document.body.appendChild(layer);
+  let done = false;
+  const finish = () => {
+    if (done) return; done = true;
+    layer.style.transition = 'opacity 0.3s'; layer.style.opacity = '0';
+    setTimeout(() => layer.remove(), 300);
+    leaveCoachMark();
+  };
+  layer.addEventListener('pointerdown', finish);
+
+  const r1 = champ.getBoundingClientRect();
+  const bubble = document.createElement('div');
+  bubble.className = 'coach-bubble point-up';
+  bubble.innerHTML = 'La más barata cerca. <b class="green">Verde</b> = ahorras.';
+  bubble.style.left = `${Math.max(12, r1.left)}px`;
+  bubble.style.top = `${r1.bottom + 10}px`;
+  layer.appendChild(bubble);
+  if (!reduced()) champ.classList.add('coach-beat');
+
+  // gota que baja y se vuelve roja: "cuanto más abajo, más cara"
+  if (!reduced()) {
+    const num = champ.querySelector('.card-price .num');
+    if (num) {
+      const g = num.getBoundingClientRect();
+      const drop = document.createElement('div');
+      drop.className = 'coach-drop';
+      drop.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="22"><path d="M12 3c-3.5 4.6-5.5 7.5-5.5 10.2a5.5 5.5 0 0 0 11 0C17.5 10.5 15.5 7.6 12 3Z" fill="currentColor"/></svg>';
+      drop.style.left = `${g.left}px`;
+      drop.style.top = `${g.top}px`;
+      layer.appendChild(drop);
+      setTimeout(() => {
+        bubble.innerHTML = '<b class="red">Rojo</b> = más cara, según bajas en la lista.';
+        drop.style.color = 'var(--q3)';
+        drop.style.transform = 'translateY(120px)';
+      }, 1300);
+    }
+  }
+  setTimeout(finish, 2600);
+}
+function leaveCoachMark() {
+  const controls = document.querySelector('.controls');
+  if (!controls || document.querySelector('.coach-mark')) return;
+  const mark = document.createElement('div');
+  mark.className = 'coach-mark';
+  mark.textContent = 'Toca una gasolinera para ver horario y cómo llegar';
+  controls.after(mark);
+  const kill = () => { mark.style.opacity = '0'; setTimeout(() => mark.remove(), 300); listEl.removeEventListener('click', kill); };
+  listEl.addEventListener('click', kill);
+}
 
 // al volver a la app tras un rato, refrescar en silencio + actualizar la franja del día (F12)
 document.addEventListener('visibilitychange', () => {
@@ -1449,6 +1511,9 @@ async function init() {
   if (!isStandalone) {
     permissionState().then((st) => { if (st === 'granted') autoLocate(); });
   }
+
+  // F20 · onboarding del gradiente, tras asentarse la entrada (una sola vez)
+  dataReady.finally(() => setTimeout(runOnboarding, reduced() ? 600 : 1800));
 }
 
 init();
