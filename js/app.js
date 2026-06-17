@@ -703,13 +703,14 @@ function renderLog() {
   // Cada tramo entre dos lecturas de km usa la gasolina repostada en ese tramo.
   const asc = [...all].sort((a, b) => a.ts - b.ts);
   let prevOdo = null, bucketL = 0, bucketC = 0, totDist = 0, totL = 0, totC = 0;
+  const l100s = []; // F9: histórico de tramos para el color de la aguja del gauge
   for (const e of asc) {
     e._l100 = null;
     if (e.odo != null) {
       if (prevOdo != null && e.odo > prevOdo) {
         const dist = e.odo - prevOdo, fuel = bucketL + e.liters, cost = bucketC + e.total;
         e._l100 = (fuel / dist) * 100;
-        totDist += dist; totL += fuel; totC += cost;
+        totDist += dist; totL += fuel; totC += cost; l100s.push(e._l100);
       }
       prevOdo = e.odo; bucketL = 0; bucketC = 0;
     } else {
@@ -717,6 +718,7 @@ function renderLog() {
     }
   }
   const hasConsumo = totDist > 0;
+  const l100 = hasConsumo ? totL / totDist * 100 : 0;
   const log = asc.slice().reverse(); // descendente para mostrar, mismos objetos con _l100
 
   const P = PERIODS[logPeriod];
@@ -757,12 +759,16 @@ function renderLog() {
       </button>
     </li>`).join('');
 
+  // F9 · gauge cálido (estilo cuadro de mandos) en vez de la celda L/100 km
   const consumo = hasConsumo
     ? `<div class="log-section-title">Consumo real</div>
        <div class="log-consumo">
-         <div class="log-consumo-cell"><span class="log-consumo-val">${nfL.format(totL / totDist * 100)}</span><span class="log-consumo-unit">L/100 km</span></div>
-         <div class="log-consumo-cell"><span class="log-consumo-val">${nfEuro.format(totC / totDist * 100)} €</span><span class="log-consumo-unit">por 100 km</span></div>
-         <div class="log-consumo-cell"><span class="log-consumo-val">${nf0.format(totDist)}</span><span class="log-consumo-unit">km medidos</span></div>
+         <div class="gauge-cell">${gaugeHTML(l100, l100s)}
+           <div class="gauge-side">
+             <div class="log-consumo-val">${nfEuro.format(totC / totDist * 100)} €</div><div class="log-consumo-unit">por 100 km</div>
+             <div class="log-consumo-val" style="margin-top:8px">${nf0.format(totDist)}</div><div class="log-consumo-unit">km medidos</div>
+           </div>
+         </div>
        </div>`
     : `<div class="log-hint">Apunta los km del cuentakilómetros al repostar y verás tu consumo real (L/100 km) y el coste por 100 km.</div>`;
 
@@ -770,14 +776,139 @@ function renderLog() {
     ${toggle}
     <div class="log-summary">
       <span class="log-summary-label">${P.cur}</span>
-      <span class="log-summary-total">${nfEuro.format(cur.total)} €</span>
+      <span class="log-summary-total" id="logTotal">—</span>
       <span class="log-summary-sub">${nfL.format(cur.liters)}${NB}L · ${cur.n} repostaje${cur.n > 1 ? 's' : ''} · media ${nfEuro.format(avg)}${NB}€/${P.unit}</span>
     </div>
     ${consumo}
+    ${sparkCardHTML(asc)}
     <div class="log-section-title">Por ${P.unit}</div>
     ${bars}
     <div class="log-section-title">Historial</div>
     <ul class="log-entries">${entryRows}</ul>`;
+
+  // F3 · el total del periodo cuenta con el rodillo
+  animateValue($('logTotal'), cur.total, (v) => `${nfEuro.format(v)} €`);
+  // F9 aguja + F11 dibujo del sparkline (tras pintar)
+  requestAnimationFrame(() => { animateGauge(); wireSpark(asc); });
+}
+
+// ▓ F9 · gauge de consumo (arco + aguja, color por cuartil del histórico propio) ▓
+function gaugeArcPath(cx, cy, r, a0, a1) {
+  const p = (a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  const [x0, y0] = p(a0), [x1, y1] = p(a1);
+  const large = (a1 - a0) > Math.PI ? 1 : 0;
+  return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+}
+const GAUGE_MAX = 9, GA0 = Math.PI * 0.78, GA1 = Math.PI * 2.22; // ~220°
+function gaugeHTML(value, history) {
+  const cx = 60, cy = 60, r = 46;
+  const full = gaugeArcPath(cx, cy, r, GA0, GA1);
+  const ticks = [4, 7].map((v) => {
+    const a = GA0 + (GA1 - GA0) * (v / GAUGE_MAX);
+    const x1 = cx + (r - 9) * Math.cos(a), y1 = cy + (r - 9) * Math.sin(a);
+    const x2 = cx + (r + 1) * Math.cos(a), y2 = cy + (r + 1) * Math.sin(a);
+    const lx = cx + (r - 16) * Math.cos(a), ly = cy + (r - 16) * Math.sin(a);
+    return `<line class="gauge-tick" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/><text class="gauge-ticklabel" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle">${v}</text>`;
+  }).join('');
+  const sorted = [...history].sort((a, b) => a - b);
+  const qcol = (() => {
+    if (sorted.length < 2) return 'var(--q1)';
+    const rank = sorted.filter((x) => x < value).length / sorted.length;
+    return rank <= 0.25 ? 'var(--q0)' : rank <= 0.5 ? 'var(--q1)' : rank <= 0.75 ? 'var(--q2)' : 'var(--q3)';
+  })();
+  return `<div class="gauge" data-value="${value}" data-needle="${qcol}">
+    <svg viewBox="0 0 120 100" aria-hidden="true">
+      <defs><linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="var(--q0)"/><stop offset="0.5" stop-color="var(--q1)"/><stop offset="1" stop-color="var(--q3)"/>
+      </linearGradient></defs>
+      <path class="gauge-arc-bg" d="${full}"/>
+      <path class="gauge-arc" d="${full}"/>
+      ${ticks}
+      <line class="gauge-needle" x1="60" y1="60" x2="${(60 + (r - 6) * Math.cos(GA0)).toFixed(1)}" y2="${(60 + (r - 6) * Math.sin(GA0)).toFixed(1)}" stroke="${qcol}"/>
+      <circle class="gauge-pivot" cx="60" cy="60" r="4.5"/>
+    </svg>
+    <div class="gauge-center"><span class="gauge-num">${nfL.format(value)}</span><span class="gauge-unit">L/100 km</span></div>
+  </div>`;
+}
+function animateGauge() {
+  const g = logBody.querySelector('.gauge');
+  if (!g) return;
+  const value = parseFloat(g.dataset.value);
+  const arc = g.querySelector('.gauge-arc');
+  const needle = g.querySelector('.gauge-needle');
+  const len = arc.getTotalLength();
+  const frac = Math.max(0, Math.min(1, value / GAUGE_MAX));
+  const angleAt = (f) => GA0 + (GA1 - GA0) * f;
+  const r = 40;
+  const setNeedle = (f) => { const a = angleAt(f); needle.setAttribute('x2', (60 + r * Math.cos(a)).toFixed(1)); needle.setAttribute('y2', (60 + r * Math.sin(a)).toFixed(1)); };
+  if (reduced()) { arc.style.strokeDasharray = `${len * frac} ${len}`; setNeedle(frac); return; }
+  arc.style.strokeDasharray = `${len} ${len}`;
+  arc.style.strokeDashoffset = String(len);
+  arc.animate([{ strokeDashoffset: len }, { strokeDashoffset: len - len * frac }], { duration: 680, easing: 'cubic-bezier(0.32,0.72,0,1)', fill: 'forwards' });
+  const t0 = performance.now(), dur = 680;
+  const ease = (p) => 1 - (1 - p) ** 3;
+  (function tick(t) {
+    const p = Math.min(1, (t - t0) / dur);
+    const overshoot = p > 0.85 ? 1 + Math.sin((p - 0.85) / 0.15 * Math.PI) * 0.04 : 1;
+    setNeedle(frac * ease(p) * overshoot);
+    if (p < 1) requestAnimationFrame(tick);
+  })(t0);
+}
+
+// ▓ F11 · sparkline de €/L pagado con scrubbing y frase honesta ▓
+function sparkCardHTML(asc) {
+  if (asc.length < 2) return `<div class="spark-card"><div class="log-section-title">Lo que pagas por litro</div><p class="spark-phrase">Registra algún repostaje más y verás aquí cómo evoluciona tu €/L.</p></div>`;
+  return `<div class="spark-card"><div class="log-section-title">Lo que pagas por litro</div><div class="spark-wrap" id="sparkWrap"></div></div>`;
+}
+function wireSpark(asc) {
+  const wrap = $('sparkWrap');
+  if (!wrap || asc.length < 2) return;
+  const W = wrap.clientWidth || 300, H = 96, pad = 14;
+  const prices = asc.map((e) => e.price);
+  const min = Math.min(...prices), max = Math.max(...prices), span = Math.max(0.001, max - min);
+  const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+  const X = (i) => pad + (W - pad * 2 - 28) * (i / (asc.length - 1));
+  const Y = (p) => pad + (H - pad * 2) * (1 - (p - min) / span);
+  const sortedP = [...prices].sort((a, b) => a - b);
+  const qOf = (p) => { const rank = sortedP.filter((x) => x < p).length / sortedP.length; return rank <= 0.25 ? 'q0' : rank <= 0.5 ? 'q1' : rank <= 0.75 ? 'q2' : 'q3'; };
+  const pts = asc.map((e, i) => [X(i), Y(e.price)]);
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+  const avgY = Y(avg).toFixed(1);
+  const last = pts[pts.length - 1];
+  const dots = asc.map((e, i) => `<circle class="spark-dot ${qOf(e.price)}" cx="${pts[i][0].toFixed(1)}" cy="${pts[i][1].toFixed(1)}" r="${i === asc.length - 1 ? 4 : 2.6}" style="animation-delay:${i * 60 + 300}ms"/>`).join('');
+  wrap.innerHTML = `<svg class="spark-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <line class="spark-avg" x1="${pad}" y1="${avgY}" x2="${W - 28}" y2="${avgY}"/>
+    <path class="spark-line" d="${d}"/>${dots}
+    <text class="spark-last-label" x="${(last[0] + 7).toFixed(1)}" y="${(last[1] + 4).toFixed(1)}">${nfPrice.format(asc[asc.length - 1].price)} €</text>
+  </svg>
+  <div class="spark-tip" id="sparkTip"></div>`;
+  const line = wrap.querySelector('.spark-line');
+  if (line) { const L = line.getTotalLength(); line.style.setProperty('--len', L); }
+  if (asc.length >= 3) {
+    const diff = (asc[asc.length - 1].price - asc[0].price) * 100;
+    const phrase = document.createElement('div'); phrase.className = 'spark-phrase';
+    phrase.innerHTML = diff <= 0
+      ? `Tu €/L ha <strong>bajado ${nfL.format(Math.abs(diff))} ct</strong> desde tu primer repostaje.`
+      : `Tu €/L ha <strong>subido ${nfL.format(diff)} ct</strong> desde tu primer repostaje.`;
+    wrap.parentElement.appendChild(phrase);
+  }
+  const tip = $('sparkTip');
+  const svg = wrap.querySelector('.spark-svg');
+  function move(clientX) {
+    const rect = svg.getBoundingClientRect();
+    const x = (clientX - rect.left) / rect.width * W;
+    let best = 0, bd = 1e9;
+    pts.forEach((p, i) => { const dd = Math.abs(p[0] - x); if (dd < bd) { bd = dd; best = i; } });
+    const e = asc[best];
+    tip.innerHTML = `${new Date(e.ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${e.brand} · <b>${nfPrice.format(e.price)} €</b>`;
+    tip.style.left = (pts[best][0] / W * rect.width) + 'px';
+    tip.style.top = (pts[best][1] / H * rect.height - 8) + 'px';
+    tip.classList.add('show');
+  }
+  svg.addEventListener('pointerdown', (ev) => move(ev.clientX));
+  svg.addEventListener('pointermove', (ev) => { if (ev.buttons || ev.pointerType === 'touch') move(ev.clientX); });
+  svg.addEventListener('pointerup', () => tip.classList.remove('show'));
+  svg.addEventListener('pointerleave', () => tip.classList.remove('show'));
 }
 
 listEl.addEventListener('click', (e) => {
@@ -863,9 +994,41 @@ sheetBody.addEventListener('submit', (e) => {
     odo,
   };
   saveLog([entry, ...loadLog()]);
-  closeSheet();
-  toast(`Repostaje guardado · ${nfEuro.format(t)} €`);
+  saveReward(form, price); // F10 · recompensa honesta al guardar
 });
+
+// F10 · al guardar: gotita en el botón, y toast con veredicto honesto vs tu media previa.
+function saveReward(form, price) {
+  const log = loadLog();
+  const prices = log.map((e) => e.price);
+  const avg = prices.length > 1 ? prices.slice(1).reduce((a, b) => a + b, 0) / (prices.length - 1) : null;
+  const btn = form.querySelector('.log-save');
+  if (!reduced() && btn) {
+    const drop = document.createElement('span');
+    drop.className = 'save-drop';
+    drop.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3c-3.5 4.6-5.5 7.5-5.5 10.2a5.5 5.5 0 0 0 11 0C17.5 10.5 15.5 7.6 12 3Z" fill="currentColor"/></svg>';
+    btn.appendChild(drop);
+    drop.animate([
+      { transform: 'translateY(-22px) scaleY(1.1)', opacity: 0 },
+      { transform: 'translateY(0) scaleY(1)', opacity: 1, offset: 0.55 },
+      { transform: 'translateY(0) scaleX(1.4) scaleY(0.7)', opacity: 1, offset: 0.7 },
+      { transform: 'translateY(0) scale(1)', opacity: 0 },
+    ], { duration: 600, easing: 'cubic-bezier(0.34,1.4,0.64,1)' }).onfinish = () => drop.remove();
+  }
+  setTimeout(() => {
+    closeSheet();
+    let verdict = '';
+    if (avg != null) {
+      const diff = price - avg;
+      const below = diff <= 0;
+      const mark = below ? '<svg class="vmark" viewBox="0 0 24 24"><path d="M5 13l4 4 10-11"/></svg>' : '<svg class="vmark" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+      verdict = `<div class="toast-verdict ${below ? 'below' : 'above'}">${mark}${nfPrice.format(Math.abs(diff))} €/L ${below ? 'por debajo' : 'por encima'} de tu media</div>`;
+    }
+    toast(`Repostaje guardado · ${nfEuro.format(loadLog()[0].total)} €`, verdict);
+    const g = gastosBtn; // F10 · pulso del botón de gastos
+    if (!reduced() && g) { g.classList.remove('pulse'); void g.offsetWidth; g.classList.add('pulse'); }
+  }, reduced() ? 0 : 280);
+}
 
 // ---------- vista de gastos ----------
 
@@ -904,11 +1067,12 @@ logBody.addEventListener('click', (e) => {
 
 let toastTimer = null;
 
-function toast(msg, ms = 2600) {
-  toastEl.textContent = msg;
+// 2º parámetro opcional: HTML de una segunda línea (p. ej. el veredicto €/L de F10).
+function toast(msg, html2 = '') {
+  toastEl.innerHTML = `<div>${msg}</div>${html2}`;
   toastEl.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), html2 ? 3400 : 2600);
 }
 
 // ---------- segmented controls ----------
