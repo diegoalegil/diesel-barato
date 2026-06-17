@@ -1,7 +1,7 @@
 import { loadStations, FUELS } from './api.js';
 import { haversineKm, formatKm, requestPosition, permissionState, googleMapsUrl } from './geo.js';
 import { openSheet, closeSheet } from './sheet.js';
-import { showMap, updatePins } from './map.js';
+import { showMap, updatePins, flyToCheapestNear, mapProject, closeMini } from './map.js';
 
 // ---------- estado ----------
 
@@ -1169,6 +1169,57 @@ sortSeg.addEventListener('click', async (e) => {
 
 // ---------- mapa ----------
 
+// F16 · contenido de la mini-tarjeta del pin (lo pinta map.js; usa los helpers de app.js)
+function miniCardHTML(s) {
+  const price = priceOf(s);
+  const qc = makeQClass(state.mode ? state.stations.filter(inMode) : state.stations);
+  const q = price != null ? qc(price) : 'q1';
+  const st = scheduleStatus(s.schedule);
+  const open = st ? (st.always ? '24 h' : st.open ? 'Abierto' : 'Cerrado') : '';
+  const name = brandCase(s.brand);
+  const meta = `${shortTown(s.town)}${s._km != null ? ` · a ${formatKm(s._km)}` : ''}${open ? ` · ${open}` : ''}`;
+  return `<div class="mini-head">${monoHTML(s, name)}
+      <div style="flex:1;min-width:0"><div class="mini-name">${name}</div><div class="mini-meta">${meta}</div></div>
+      <div class="mini-price ${q}">${price != null ? fmtPrice(price) : '—'}</div></div>
+    <div class="mini-actions">
+      <button class="mini-btn secondary" type="button" data-mini-sheet><svg class="ic"><use href="#i-list"/></svg> Ver ficha</button>
+      <a class="mini-btn primary" href="${googleMapsUrl(s.lat, s.lng)}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-nav"/></svg> Cómo llegar</a>
+    </div>`;
+}
+
+// F4 · al abrir el mapa, las cifras de la lista vuelan a sus pines
+function flyPricesToMap() {
+  if (reduced()) return;
+  const mapEl = document.getElementById('map');
+  if (!mapEl) return;
+  const mapRect = mapEl.getBoundingClientRect();
+  const items = [...listEl.querySelectorAll('.card')].slice(0, 14).map((card) => {
+    const num = card.querySelector('.card-price .num');
+    const pc = card.querySelector('.card-price');
+    const s = state.stations.find((x) => x.id === card.dataset.id);
+    if (!num || !pc || !s) return null;
+    const q = [...pc.classList].find((c) => /^q\d$/.test(c));
+    return { rect: num.getBoundingClientRect(), text: num.textContent, q, s, price: priceOf(s) };
+  }).filter(Boolean);
+  items.sort((a, b) => a.price - b.price);
+  items.forEach((n, i) => {
+    const pt = mapProject(n.s.lat, n.s.lng);
+    if (!pt) return;
+    const clone = document.createElement('div');
+    clone.className = `fly-num ${n.q || ''}`;
+    clone.textContent = n.text;
+    clone.style.left = `${n.rect.left}px`;
+    clone.style.top = `${n.rect.top}px`;
+    document.body.appendChild(clone);
+    const dx = (mapRect.left + pt.x) - n.rect.left - n.rect.width / 2;
+    const dy = (mapRect.top + pt.y) - n.rect.top - n.rect.height / 2;
+    clone.animate(
+      [{ transform: 'translate(0,0) scale(1)', opacity: 1 }, { transform: `translate(${dx}px, ${dy}px) scale(0.5)`, opacity: 0 }],
+      { duration: 620, delay: i * 28, easing: 'cubic-bezier(0.32,0.72,0,1)', fill: 'forwards' }
+    ).onfinish = () => clone.remove();
+  });
+}
+
 function mapArgs() {
   // mapa coherente con la lista: con una app activa, solo sus pines
   const stations = state.mode ? state.stations.filter(inMode) : state.stations;
@@ -1178,23 +1229,38 @@ function mapArgs() {
     qClassOf: makeQClass(stations), // mismos colores que la lista (relativo a lo visible)
     fmtPrice,
     onSelect: openStation,
+    miniHTML: miniCardHTML, // F16
   };
 }
 
 let mapLastFocus = null;
 
-mapBtn.addEventListener('click', async () => {
+mapBtn.addEventListener('click', async (e) => {
   state.mapOpen = true;
   mapLastFocus = document.activeElement;
   mapView.hidden = false;
   mainEl.inert = true;
+  // F4 · wipe radial que revela el mapa desde el botón
+  if (!reduced()) {
+    const bx = ((e.clientX || window.innerWidth / 2) / window.innerWidth) * 100;
+    const by = ((e.clientY || window.innerHeight) / window.innerHeight) * 100;
+    mapView.style.setProperty('--reveal-x', `${bx}%`);
+    mapView.style.setProperty('--reveal-y', `${by}%`);
+    mapView.classList.add('revealing');
+    mapView.style.setProperty('--reveal-r', '0%');
+    requestAnimationFrame(() => { mapView.style.transition = 'clip-path 0.5s var(--ease-ios)'; mapView.style.setProperty('--reveal-r', '150%'); });
+    setTimeout(() => { mapView.classList.remove('revealing'); mapView.style.transition = ''; }, 520);
+  }
   try {
     await showMap({ ...mapArgs(), pos: state.pos });
+    requestAnimationFrame(() => flyPricesToMap()); // F4
     mapClose.focus({ preventScroll: true });
   } catch {
     mapView.hidden = true;
     mainEl.inert = false;
     state.mapOpen = false;
+    mapView.classList.remove('revealing');
+    mapView.style.transition = '';
     if (mapLastFocus && mapLastFocus.focus) mapLastFocus.focus({ preventScroll: true });
     toast('No se pudo cargar el mapa');
   }
@@ -1202,6 +1268,7 @@ mapBtn.addEventListener('click', async () => {
 
 function closeMap() {
   if (mapView.hidden) return;
+  closeMini(); // F16
   closeSheet();
   mainEl.inert = false;
   mapView.classList.add('closing');
@@ -1215,6 +1282,11 @@ function closeMap() {
 }
 
 mapClose.addEventListener('click', closeMap);
+
+// F17 · botón "Más barata cerca" → vuela a la más barata cercana (necesita ubicación)
+$('mapBest').addEventListener('click', () => {
+  if (!flyToCheapestNear()) toast('Toca “Más cercanas” primero para localizarte');
+});
 
 // Escape cierra los overlays de pantalla completa (la ficha ya tiene el suyo en sheet.js).
 // En captura para correr ANTES del handler de la ficha: si hay una ficha abierta encima
