@@ -1261,11 +1261,11 @@ updatedChip.addEventListener('click', () => refresh());
 updatedInline.addEventListener('click', () => refresh());
 retryBtn.addEventListener('click', () => refresh());
 
-// al volver a la app tras un rato, refrescar en silencio
+// al volver a la app tras un rato, refrescar en silencio + actualizar la franja del día (F12)
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && state.fecha && Date.now() - state.fecha > 10 * 60 * 1000) {
-    refresh({ silent: true });
-  }
+  if (document.visibilityState !== 'visible') return;
+  applyDaytime();
+  if (state.fecha && Date.now() - state.fecha > 10 * 60 * 1000) refresh({ silent: true });
 });
 
 // ---------- barra compacta al hacer scroll ----------
@@ -1273,8 +1273,16 @@ document.addEventListener('visibilitychange', () => {
 // de la cifra; --chip-t muestra el chip de actualizar más tarde. F13 · --sy alimenta el parallax.
 
 const hero = document.querySelector('.hero');
+const heroEl = document.querySelector('.hero-art');
 topbar.classList.add('scroll-driven');
 let ticking = false;
+
+// F12 · el Teide según la hora real (recolorea el cielo del hero por franja del día)
+function applyDaytime() {
+  if (!heroEl) return;
+  const h = new Date().getHours();
+  heroEl.setAttribute('data-daytime', h < 8 ? 'dawn' : h < 18 ? 'day' : h < 21 ? 'dusk' : 'night');
+}
 
 function onScroll() {
   if (ticking) return;
@@ -1339,6 +1347,7 @@ if (isStandalone) {
 
 async function init() {
   // arranca sin app de descuento activa (modo normal)
+  applyDaytime(); // F12
   setSeg(fuelSeg, 'fuel', state.fuel);
   setSeg(sortSeg, 'sort', state.sort);
 

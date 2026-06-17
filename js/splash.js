@@ -32,6 +32,19 @@
     // failsafe: fuera del DOM pase lo que pase
     setTimeout(removeSplash, EXIT_MS + 200);
 
+    // F15 · el splash entrega el paisaje al hero: hero y stats entran escalonados al salir
+    // (las tarjetas ya cascadean solas con .enter, no se re-animan para no duplicar).
+    if (!reduced) {
+      var seq = [document.querySelector('.hero'), document.getElementById('stats')];
+      for (var i = 0; i < seq.length; i++) {
+        if (!seq[i]) continue;
+        (function (el, k) {
+          el.style.animation = 'card-in 0.55s var(--ease-ios) ' + (k * 80 + 60) + 'ms both';
+          setTimeout(function () { el.style.animation = ''; }, k * 80 + 900);
+        })(seq[i], i);
+      }
+    }
+
     splash.classList.add('is-leaving');
   }
 
