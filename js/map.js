@@ -1,8 +1,10 @@
 // Mapa Leaflet con tiles CARTO, cargado solo cuando se necesita.
 // F18 racimos · F16 mini-tarjeta · F17 vuela a la más barata cerca · F4 proyección para el vuelo.
 
-const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+// Leaflet 1.9.4 auto-hospedado (sin CDN externo): así el shell entra en el service
+// worker y la integridad no depende de un tercero.
+const LEAFLET_JS = './js/vendor/leaflet/leaflet.js';
+const LEAFLET_CSS = './js/vendor/leaflet/leaflet.css';
 
 const TILES_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const TILES_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';

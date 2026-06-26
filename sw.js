@@ -1,6 +1,6 @@
 // Service worker: la app funciona al instante y sin conexión.
 
-const VERSION = 'db-v24';
+const VERSION = 'db-v25';
 
 const SHELL = [
   './',
@@ -13,6 +13,8 @@ const SHELL = [
   './js/geo.js',
   './js/sheet.js',
   './js/map.js',
+  './js/vendor/leaflet/leaflet.js',
+  './js/vendor/leaflet/leaflet.css',
   './manifest.webmanifest',
   './icons/icon.svg',
 ];
@@ -52,13 +54,13 @@ self.addEventListener('fetch', (e) => {
   // teselas del mapa: siempre red (demasiadas para cachear)
   if (url.hostname.endsWith('cartocdn.com')) return;
 
-  // resto (shell, fuentes, leaflet): caché primero, red de respaldo
+  // resto (shell, fuentes): caché primero, red de respaldo
   e.respondWith(
     caches.match(e.request).then(
       (hit) =>
         hit ||
         fetch(e.request).then((res) => {
-          if (res.ok && (url.origin === location.origin || url.hostname.includes('unpkg') || url.hostname.includes('fonts.g'))) {
+          if (res.ok && (url.origin === location.origin || url.hostname.includes('fonts.g'))) {
             const clone = res.clone();
             caches.open(VERSION).then((c) => c.put(e.request, clone));
           }

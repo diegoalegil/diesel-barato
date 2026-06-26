@@ -69,6 +69,23 @@ const eur = (n) => `${nfPrice.format(n)} €`;
 const NB = String.fromCharCode(160);
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// Escapa texto que viene de la API (rótulo, dirección, municipio…) antes de meterlo en
+// innerHTML: el Ministerio es la fuente, pero el dato no deja de ser ajeno, así que se trata
+// como no confiable. Neutraliza & < > y ambas comillas.
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// El IDEESS del Ministerio es numérico; al usarlo en un atributo o en un selector
+// (querySelector(`[data-id="…"]`)) lo reducimos a dígitos para que no pueda romper el
+// contexto ni inyectar un selector.
+const safeId = (id) => String(id).replace(/\D/g, '');
+
 const SMALL_WORDS = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'en', 'a', 'al']);
 
 function titleCase(str) {
@@ -189,9 +206,18 @@ function priceOf(s) {
 
 function monoHTML(s, name) {
   const logo = brandLogo(s.brand);
-  const img = logo ? `<img src="${logo}" alt="" loading="lazy" onerror="this.remove()">` : '';
-  return `<span class="mono${logo ? ' mono-img' : ''}" style="--mono:${monoColor(s.brand)}">${monogram(name)}${img}</span>`;
+  // sin onerror inline (lo bloquearía la CSP): si el logo no carga, lo retira el
+  // listener delegado de abajo y queda el monograma.
+  const img = logo ? `<img class="mono-logo" src="${logo}" alt="" loading="lazy">` : '';
+  return `<span class="mono${logo ? ' mono-img' : ''}" style="--mono:${monoColor(s.brand)}">${escapeHtml(monogram(name))}${img}</span>`;
 }
+
+// El logo que no cargue se quita en fase de captura (error no burbujea): así la marca
+// se queda con su monograma, igual que antes hacía el onerror inline.
+document.addEventListener('error', (e) => {
+  const t = e.target;
+  if (t && t.tagName === 'IMG' && t.classList.contains('mono-logo')) t.remove();
+}, true);
 
 function formatUpdated(ts) {
   const d = new Date(ts);
@@ -420,8 +446,8 @@ function renderVerdict() {
   verdictEl.classList.remove('win', 'lose');
   verdictEl.classList.add(win ? 'win' : 'lose');
   verdictEl.innerHTML = win
-    ? `<strong>Con ${cfg.app} te sale mejor</strong>: ${eur(pr)} en ${shortTown(bestM.town)} frente a ${eur(po)} de ${brandCase(bestO.brand)}.`
-    : `<strong>Sale mejor ${brandCase(bestO.brand)}</strong> (${shortTown(bestO.town)}): ${eur(po)} frente a ${eur(pr)} con ${cfg.app}. <button class="verdict-link" data-id="${bestO.id}">Ver ${brandCase(bestO.brand)} →</button>`;
+    ? `<strong>Con ${cfg.app} te sale mejor</strong>: ${eur(pr)} en ${escapeHtml(shortTown(bestM.town))} frente a ${eur(po)} de ${escapeHtml(brandCase(bestO.brand))}.`
+    : `<strong>Sale mejor ${escapeHtml(brandCase(bestO.brand))}</strong> (${escapeHtml(shortTown(bestO.town))}): ${eur(po)} frente a ${eur(pr)} con ${cfg.app}. <button class="verdict-link" data-id="${safeId(bestO.id)}">Ver ${escapeHtml(brandCase(bestO.brand))} →</button>`;
   verdictEl.hidden = false;
 }
 
@@ -439,11 +465,11 @@ function renderPremiumTip() {
   const shells = prem.filter((s) => brandKey(s.brand) === 'shell');
   const shell = shells.length ? cheapestStation(shells) : null;
   const shellPart = shell
-    ? ` <button class="verdict-link" data-id="${shell.id}">Shell V-Power: ${eur(priceOf(shell))} en ${shortTown(shell.town)} →</button>`
+    ? ` <button class="verdict-link" data-id="${safeId(shell.id)}">Shell V-Power: ${eur(priceOf(shell))} en ${escapeHtml(shortTown(shell.town))} →</button>`
     : '';
   premiumTip.innerHTML =
     `<strong>Diésel premium</strong>: lleva aditivos que limpian el motor, va bien un depósito de vez en cuando. ` +
-    `El más barato: ${brandCase(cheapest.brand)} a ${eur(priceOf(cheapest))}.${shellPart}`;
+    `El más barato: ${escapeHtml(brandCase(cheapest.brand))} a ${eur(priceOf(cheapest))}.${shellPart}`;
   premiumTip.hidden = false;
 }
 
@@ -453,18 +479,19 @@ function cardHTML(s, rank, qClassOf, cheapestId, cheapestTag, animate) {
   const st = scheduleStatus(s.schedule);
   const open = openLabel(st);
   const name = brandCase(s.brand);
+  const sid = safeId(s.id);
   const tag = s.id === cheapestId ? cheapestTag : '';
   const anim = animate ? ` enter" style="--d:${Math.min(rank, 13)}` : '';
   const meta =
-    `<span class="meta-town">${shortTown(s.town)}</span>` +
+    `<span class="meta-town">${escapeHtml(shortTown(s.town))}</span>` +
     (s._km != null ? `<span class="meta-fix">· a ${formatKm(s._km)}</span>` : '') +
     (open ? `<span class="meta-fix">· ${open}</span>` : '');
-  return `<li class="card${anim}" data-id="${s.id}">
-    <button class="card-btn" data-id="${s.id}">
+  return `<li class="card${anim}" data-id="${sid}">
+    <button class="card-btn" data-id="${sid}">
       <span class="sweep" aria-hidden="true"></span>
       ${monoHTML(s, name)}
       <span class="card-main">
-        <span class="card-name">${name}</span>
+        <span class="card-name">${escapeHtml(name)}</span>
         <span class="card-meta">${meta}</span>
         ${tag}
       </span>
@@ -504,7 +531,7 @@ function renderList(animate = true) {
   // F1 · sello de la más barata: marca la tarjeta nº1 tras el último escalón de entrada.
   // cheapestId ya respeta la lente de descuento (cheapestStation sobre la lista visible).
   clearTimeout(champTimer);
-  const champ = cheapestId && listEl.querySelector(`.card[data-id="${cheapestId}"]`);
+  const champ = cheapestId && listEl.querySelector(`.card[data-id="${safeId(cheapestId)}"]`);
   if (champ) {
     if (!animate || reduced()) champ.classList.add('is-champion');
     else champTimer = setTimeout(() => champ.classList.add('is-champion'), Math.min(list.length - 1, 13) * 36 + 120);
@@ -555,8 +582,8 @@ function sheetHTML(s) {
     <div class="sheet-head">
       ${monoHTML(s, name)}
       <div>
-        <div class="sheet-name">${name}</div>
-        <div class="sheet-town">${townLine}</div>
+        <div class="sheet-name">${escapeHtml(name)}</div>
+        <div class="sheet-town">${escapeHtml(townLine)}</div>
         ${cheapest ? bestTagHTML(cheapestLabel) : ''}
       </div>
     </div>
@@ -564,13 +591,13 @@ function sheetHTML(s) {
     <div class="sheet-rows">
       <div class="sheet-row">
         <svg class="ilc" aria-hidden="true"><use href="#il-pin"/></svg>
-        <span class="sheet-row-text">${titleCase(s.address)}
-          <span class="sheet-row-sub">${shortTown(s.locality || s.town)}</span>
+        <span class="sheet-row-text">${escapeHtml(titleCase(s.address))}
+          <span class="sheet-row-sub">${escapeHtml(shortTown(s.locality || s.town))}</span>
         </span>
       </div>
       ${s.schedule ? `<div class="sheet-row">
         <svg class="ilc" aria-hidden="true"><use href="#il-clock"/></svg>
-        <span class="sheet-row-text">${s.schedule}
+        <span class="sheet-row-text">${escapeHtml(s.schedule)}
           ${openSub ? `<span class="sheet-row-sub ${st.open ? 'is-open' : 'is-closed'}">${openSub}</span>` : ''}
         </span>
       </div>` : ''}
@@ -636,7 +663,7 @@ const nf0 = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0, useGroupi
 function logFormHTML(s) {
   const price = priceOf(s);
   const fuelName = (FUELS.find((f) => f.key === state.fuel) || FUELS[0]).label;
-  return `<div class="sheet-log" data-station="${s.id}" data-fuel="${state.fuel}" data-price="${price ?? ''}">
+  return `<div class="sheet-log" data-station="${safeId(s.id)}" data-fuel="${state.fuel}" data-price="${price ?? ''}">
     <button class="log-open" type="button" data-log-open>
       <svg class="ic" aria-hidden="true"><use href="#il-coin"/></svg> He repostado aquí
     </button>
@@ -750,7 +777,7 @@ function renderLog() {
   const entryRows = log.map((e) => `
     <li class="log-entry">
       <div class="log-entry-main">
-        <span class="log-entry-brand">${e.brand}</span>
+        <span class="log-entry-brand">${escapeHtml(e.brand)}</span>
         <span class="log-entry-meta">${new Date(e.ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${nfL.format(e.liters)}${NB}L · ${nfPrice.format(e.price)}${NB}€/L${e._l100 ? ` · ${nfL.format(e._l100)}${NB}L/100${NB}km` : ''}</span>
       </div>
       <span class="log-entry-total">${nfEuro.format(e.total)} €</span>
@@ -900,7 +927,7 @@ function wireSpark(asc) {
     let best = 0, bd = 1e9;
     pts.forEach((p, i) => { const dd = Math.abs(p[0] - x); if (dd < bd) { bd = dd; best = i; } });
     const e = asc[best];
-    tip.innerHTML = `${new Date(e.ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${e.brand} · <b>${nfPrice.format(e.price)} €</b>`;
+    tip.innerHTML = `${new Date(e.ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${escapeHtml(e.brand)} · <b>${nfPrice.format(e.price)} €</b>`;
     tip.style.left = (pts[best][0] / W * rect.width) + 'px';
     tip.style.top = (pts[best][1] / H * rect.height - 8) + 'px';
     tip.classList.add('show');
@@ -1068,8 +1095,18 @@ logBody.addEventListener('click', (e) => {
 let toastTimer = null;
 
 // 2º parámetro opcional: HTML de una segunda línea (p. ej. el veredicto €/L de F10).
+// El mensaje va por textContent (puede llevar texto derivado de datos); html2 es un
+// fragmento construido aquí dentro, de confianza.
 function toast(msg, html2 = '') {
-  toastEl.innerHTML = `<div>${msg}</div>${html2}`;
+  toastEl.textContent = '';
+  const line = document.createElement('div');
+  line.textContent = msg;
+  toastEl.appendChild(line);
+  if (html2) {
+    const extra = document.createElement('div');
+    extra.innerHTML = html2;
+    toastEl.appendChild(extra.firstElementChild || document.createTextNode(''));
+  }
   toastEl.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toastEl.classList.remove('show'), html2 ? 3400 : 2600);
@@ -1177,9 +1214,9 @@ function miniCardHTML(s) {
   const st = scheduleStatus(s.schedule);
   const open = st ? (st.always ? '24 h' : st.open ? 'Abierto' : 'Cerrado') : '';
   const name = brandCase(s.brand);
-  const meta = `${shortTown(s.town)}${s._km != null ? ` · a ${formatKm(s._km)}` : ''}${open ? ` · ${open}` : ''}`;
+  const meta = `${escapeHtml(shortTown(s.town))}${s._km != null ? ` · a ${formatKm(s._km)}` : ''}${open ? ` · ${open}` : ''}`;
   return `<div class="mini-head">${monoHTML(s, name)}
-      <div style="flex:1;min-width:0"><div class="mini-name">${name}</div><div class="mini-meta">${meta}</div></div>
+      <div style="flex:1;min-width:0"><div class="mini-name">${escapeHtml(name)}</div><div class="mini-meta">${meta}</div></div>
       <div class="mini-price ${q}">${price != null ? fmtPrice(price) : '—'}</div></div>
     <div class="mini-actions">
       <button class="mini-btn secondary" type="button" data-mini-sheet><svg class="ic"><use href="#i-list"/></svg> Ver ficha</button>
