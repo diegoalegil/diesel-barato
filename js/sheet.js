@@ -143,6 +143,12 @@ function kbHeight() {
   return Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
 }
 
+function scrollFieldIntoView(el) {
+  if (el && sheet.contains(el)) {
+    requestAnimationFrame(() => { try { el.scrollIntoView({ block: 'center' }); } catch {} });
+  }
+}
+
 function syncKeyboard() {
   const focused = document.activeElement;
   const editing = isOpen && focused && sheet.contains(focused) &&
@@ -151,6 +157,9 @@ function syncKeyboard() {
   if (editing && kb > 90) {
     sheet.style.setProperty('--kb', kb + 'px');
     sheet.classList.add('kb');
+    // atado al momento en que la ficha sube: así el campo queda a la vista
+    // pase lo que pase con el timing del teclado en cada iPhone
+    scrollFieldIntoView(focused);
   } else {
     sheet.classList.remove('kb');
     sheet.style.removeProperty('--kb');
