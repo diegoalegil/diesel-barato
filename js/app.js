@@ -562,7 +562,10 @@ function renderAll(animate = true) {
 // está en el dato oficial no se afirma.
 function stationStoryHTML(s, pool) {
   const key = brandKey(s.brand);
-  const fact = brandFact(key);
+  const town = shortTown(s.town);
+  // texto: dato real de la marca; para independientes de una sola estación,
+  // un respaldo veraz basado en el municipio (nada inventado).
+  const text = brandFact(key) || (key ? null : `Gasolinera independiente de ${town}.`);
 
   // superlativos reales sobre el combustible activo (precio bruto, sin lente)
   const price = s.prices[state.fuel];
@@ -573,25 +576,30 @@ function stationStoryHTML(s, pool) {
     const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
     const sorted = [...prices].sort((a, b) => a - b);
     const rank = sorted.indexOf(price); // 0 = la más barata
+    const townPrices = pool.filter((x) => x.town === s.town).map((x) => x.prices[state.fuel]).filter((p) => p != null);
+    const townMin = townPrices.length ? Math.min(...townPrices) : Infinity;
     if (price <= min + 0.0005) badges.push({ ic: 'il-drop', t: `La más barata de Tenerife ahora mismo en ${fuelLabel()}` });
+    else if (townPrices.length > 1 && price <= townMin + 0.0005) badges.push({ ic: 'il-drop', t: `La más barata de ${town}` });
     else if (rank >= 0 && rank < 5) badges.push({ ic: 'il-drop', t: 'Entre las más baratas de la isla ahora' });
     const under = Math.round((avg - price) * 100);
     if (price > min + 0.0005 && under >= 1) badges.push({ ic: 'il-coin', t: `${under} ct/L por debajo de la media de la isla` });
   }
   if (scheduleStatus(s.schedule)?.always) badges.push({ ic: 'il-clock', t: 'Abierta 24 horas' });
-  // red más extensa de la isla (la marca con más estaciones)
+  // red de la marca / presencia en el municipio
   const counts = new Map();
-  for (const x of state.stations) { const k = brandKey(x.brand); counts.set(k, (counts.get(k) || 0) + 1); }
+  for (const x of state.stations) { const k = brandKey(x.brand); if (k) counts.set(k, (counts.get(k) || 0) + 1); }
   let topKey = null, topN = 0;
   for (const [k, n] of counts) if (n > topN) { topN = n; topKey = k; }
-  const mine = counts.get(key) || 0;
-  if (key === topKey && topN > 1) badges.push({ ic: 'il-pump', t: `La red más extensa de Tenerife (${topN} gasolineras)` });
+  const mine = key ? (counts.get(key) || 0) : 0;
+  const townCount = state.stations.filter((x) => x.town === s.town).length;
+  if (key && key === topKey && topN > 1) badges.push({ ic: 'il-pump', t: `La red más extensa de Tenerife (${topN} gasolineras)` });
   else if (mine > 1) badges.push({ ic: 'il-pump', t: `Una de las ${mine} ${brandCase(s.brand)} de la isla` });
+  else if (townCount === 1) badges.push({ ic: 'il-pin', t: `La única gasolinera de ${town}` });
   if (LOWCOST.has(key)) badges.push({ ic: 'il-coin', t: 'Estación low cost, automática' });
 
   const shown = badges.slice(0, 3);
-  if (!fact && !shown.length) return '';
-  const factHTML = fact ? `<p class="story-text">${escapeHtml(fact)}</p>` : '';
+  if (!text && !shown.length) return '';
+  const factHTML = text ? `<p class="story-text">${escapeHtml(text)}</p>` : '';
   const badgeHTML = shown.length
     ? `<div class="story-badges">${shown.map((b) => `<span class="story-badge"><svg class="ilc" aria-hidden="true"><use href="#${b.ic}"/></svg>${escapeHtml(b.t)}</span>`).join('')}</div>`
     : '';
