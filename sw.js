@@ -1,6 +1,6 @@
 // Service worker: la app funciona al instante y sin conexión.
 
-const VERSION = 'db-v25';
+const VERSION = 'db-v27';
 
 const SHELL = [
   './',
@@ -12,6 +12,7 @@ const SHELL = [
   './js/api.js',
   './js/geo.js',
   './js/sheet.js',
+  './js/facts.js',
   './js/map.js',
   './js/vendor/leaflet/leaflet.js',
   './js/vendor/leaflet/leaflet.css',

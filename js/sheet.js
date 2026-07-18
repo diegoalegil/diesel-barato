@@ -48,6 +48,9 @@ export function openSheet(html) {
 export function closeSheet() {
   if (!isOpen) return;
   isOpen = false;
+  // teclado: devolver la ficha a su sitio
+  sheet.classList.remove('kb');
+  sheet.style.removeProperty('--kb');
   // F8 · devolver el fondo a su sitio (y quitar la clase cuando termine la transición)
   if (mainEl) { mainEl.style.setProperty('--sheet-p', '0'); setTimeout(() => { if (!isOpen) mainEl.classList.remove('sheet-depth'); }, 430); }
   // F7 · cierre con momentum; con reduce-motion, cierre simple por CSS
@@ -126,4 +129,49 @@ sheet.addEventListener('touchend', () => {
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeSheet();
+});
+
+// ---------- teclado en iPhone ----------
+// Al enfocar un campo (litros/precio/km), el teclado de iOS tapa la parte baja
+// de la ficha. Con visualViewport medimos su alto y subimos la ficha por encima,
+// y desplazamos el campo enfocado a la vista. Sin visualViewport (escritorio),
+// no molesta.
+const vv = window.visualViewport;
+
+function kbHeight() {
+  if (!vv) return 0;
+  return Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+}
+
+function syncKeyboard() {
+  const focused = document.activeElement;
+  const editing = isOpen && focused && sheet.contains(focused) &&
+    /^(input|textarea)$/i.test(focused.tagName);
+  const kb = kbHeight();
+  if (editing && kb > 90) {
+    sheet.style.setProperty('--kb', kb + 'px');
+    sheet.classList.add('kb');
+  } else {
+    sheet.classList.remove('kb');
+    sheet.style.removeProperty('--kb');
+  }
+}
+
+if (vv) {
+  vv.addEventListener('resize', syncKeyboard);
+  vv.addEventListener('scroll', syncKeyboard);
+}
+
+sheet.addEventListener('focusin', (e) => {
+  if (!/^(input|textarea)$/i.test(e.target.tagName)) return;
+  // el teclado tarda en animar: recalcular y traer el campo a la vista
+  setTimeout(syncKeyboard, 250);
+  setTimeout(() => {
+    syncKeyboard();
+    e.target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, 350);
+});
+
+sheet.addEventListener('focusout', () => {
+  setTimeout(syncKeyboard, 120);
 });

@@ -819,3 +819,45 @@
   .error-hose, .error-drop { animation: none !important; }
   .error-drop { opacity: 0; }
 }
+
+
+/* ============================================================
+   DATO CURIOSO DE CADA GASOLINERA (ficha)
+   Historia real de la marca + insignias calculadas en vivo.
+   ============================================================ */
+
+.story {
+  margin: 15px 0 2px;
+  padding: 13px 15px 14px;
+  background: var(--accent-soft);
+  border-radius: var(--r-md);
+}
+.story-head {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.03em;
+  text-transform: uppercase; color: var(--accent);
+  margin-bottom: 8px;
+}
+.story-head .ilc { width: 18px; height: 18px; }
+.story-text { font-size: 14.5px; line-height: 1.5; color: var(--ink); }
+.story-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
+.story-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px 5px 8px;
+  background: var(--card); border-radius: 999px;
+  font-size: 12px; font-weight: 600; color: var(--ink-2);
+  box-shadow: var(--shadow-card);
+}
+.story-badge .ilc { width: 15px; height: 15px; flex: none; }
+
+
+/* ============================================================
+   TECLADO iPhone: la ficha sube por encima del teclado
+   sheet.js pone --kb (alto del teclado) y la clase .kb al enfocar un campo.
+   ============================================================ */
+
+.sheet.kb {
+  bottom: var(--kb, 0px);
+  max-height: calc(86dvh - var(--kb, 0px));
+  transition: bottom 0.22s var(--ease-ios), max-height 0.22s var(--ease-ios);
+}
